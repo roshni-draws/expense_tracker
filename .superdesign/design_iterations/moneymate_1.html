@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MoneyMate — Your friendly money companion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ["'Plus Jakarta Sans'", "system-ui", "sans-serif"] },
+          colors: {
+            cream: "#F5EFE0",
+            creamdeep: "#EBE2CE",
+            ink: "#2D2420",
+            inkmute: "#6B5E54",
+            peach:  { 100: "#FFE8D4", 200: "#FFD2AF", 300: "#FFBC89" },
+            pyellow:{ 100: "#FFF2C2", 200: "#FFE89A", 300: "#FFDA6A" },
+            pmint:  { 100: "#D6EFDE", 200: "#B8E6C6", 300: "#92D9A8" },
+            pblue:  { 100: "#DCEAF7", 200: "#BFD9F2", 300: "#96C2E6" },
+            ppink:  { 100: "#FFDBE7", 200: "#FFCCDB", 300: "#FFA7BF" },
+            plilac: { 100: "#E8DBF7", 200: "#DCCBF2", 300: "#C1A8E8" },
+            pgreen: { 100: "#DDF0E0", 200: "#C8E8CE", 300: "#9DD4AB" },
+          },
+          boxShadow: {
+            soft: "0 10px 30px -8px rgba(45,36,32,0.10), 0 3px 10px -4px rgba(45,36,32,0.04)",
+            pop:  "0 20px 48px -14px rgba(45,36,32,0.18), 0 8px 18px -8px rgba(45,36,32,0.06)",
+            inset: "inset 0 1px 0 rgba(255,255,255,0.6)"
+          },
+          borderRadius: { "4xl": "2rem", "5xl": "2.5rem" }
+        }
+      }
+    };
+  </script>
+  <style>
+    html, body { background: #F5EFE0; color: #2D2420; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    *:focus { outline: none; }
+    input::placeholder, textarea::placeholder { color: #8a7f77; }
+    /* hide number spinners */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    /* thin scrollbar */
+    .thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .thin-scroll::-webkit-scrollbar-thumb { background: rgba(45,36,32,0.22); border-radius: 999px; }
+    .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+    /* organic blob radii */
+    .blob-1 { border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%; }
+    .blob-2 { border-radius: 40% 60% 30% 70% / 60% 40% 70% 50%; }
+    .blob-3 { border-radius: 70% 30% 50% 50% / 40% 70% 30% 60%; }
+    /* typing dots */
+    @keyframes dotb { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-4px); opacity: 1; } }
+    .dot { display: inline-block; width: 6px; height: 6px; margin: 0 2px; border-radius: 999px; background: #6B5E54; animation: dotb 1.2s infinite ease-in-out; }
+    .dot:nth-child(2) { animation-delay: 0.15s; }
+    .dot:nth-child(3) { animation-delay: 0.3s; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react/": "https://esm.sh/react@18.3.1/",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "framer-motion": "https://esm.sh/framer-motion@11.11.17?external=react,react-dom"
+    }
+  }
+  </script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module" data-presets="react">
+    import React, { useState, useMemo, useRef, useEffect } from "react";
+    import { createRoot } from "react-dom/client";
+    import { motion, AnimatePresence, useSpring, LayoutGroup } from "framer-motion";
+
+    // ——————————————————————————————————————————————————————————————
+    //  Helpers
+    // ——————————————————————————————————————————————————————————————
+    const num = (v) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const fmt = (n, decimals = 0) =>
+      Number(n).toLocaleString("en-IN", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      });
+
+    // Persist state to localStorage — survives reloads & browser restarts.
+    function usePersistedState(key, defaultValue) {
+      const [value, setValue] = useState(() => {
+        try {
+          const raw = window.localStorage.getItem(key);
+          if (raw !== null) return JSON.parse(raw);
+        } catch (e) { /* private mode, quota, etc. */ }
+        return defaultValue;
+      });
+      const [savedAt, setSavedAt] = useState(null);
+      useEffect(() => {
+        try {
+          window.localStorage.setItem(key, JSON.stringify(value));
+          setSavedAt(Date.now());
+        } catch (e) { /* noop */ }
+      }, [key, value]);
+      return [value, setValue, savedAt];
+    }
+
+    // Animated number that springs toward target
+    function AnimatedNumber({ value, prefix = "", decimals = 0, className = "" }) {
+      const spring = useSpring(value, { stiffness: 70, damping: 20, mass: 0.8 });
+      const [display, setDisplay] = useState(value);
+      useEffect(() => { spring.set(value); }, [value, spring]);
+      useEffect(() => spring.on("change", (v) => setDisplay(v)), [spring]);
+      return (
+        <span className={className}>
+          {prefix}{fmt(display, decimals)}
+        </span>
+      );
+    }
+
+    // Field wrapper with friendly large input
+    function MoneyInput({ value, onChange, placeholder = "0", size = "md", prefix = "₹" }) {
+      const sizeCls = size === "xl"
+        ? "text-4xl sm:text-5xl font-extrabold"
+        : size === "lg"
+        ? "text-2xl font-bold"
+        : "text-xl font-semibold";
+      return (
+        <div className="flex items-baseline gap-1.5">
+          <span className={`${sizeCls} text-ink/60`}>{prefix}</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className={`${sizeCls} bg-transparent w-full min-w-0 placeholder:text-ink/25 focus:placeholder:text-ink/15 transition-colors`}
+          />
+        </div>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Header
+    // ——————————————————————————————————————————————————————————————
+    // Export helpers — captures the dashboard as PNG or PDF using html2canvas + jsPDF.
+    async function snapshotNode(node) {
+      // Give any in-flight animations a beat to settle, then rasterize.
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      return window.html2canvas(node, {
+        backgroundColor: "#F5EFE0",
+        scale: Math.min(2, window.devicePixelRatio || 1.5),
+        useCORS: true,
+        logging: false,
+        ignoreElements: (el) => el.dataset && el.dataset.exportIgnore === "true",
+      });
+    }
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    async function exportAs(kind) {
+      const node = document.querySelector("[data-export-root]");
+      if (!node || !window.html2canvas) return;
+      const stamp = new Date().toISOString().slice(0, 10);
+      const canvas = await snapshotNode(node);
+      if (kind === "png") {
+        canvas.toBlob((blob) => blob && downloadBlob(blob, `moneymate-${stamp}.png`));
+        return;
+      }
+      if (kind === "pdf" && window.jspdf) {
+        const { jsPDF } = window.jspdf;
+        const imgData = canvas.toDataURL("image/png");
+        const pageW = 595.28; // A4 width in pt
+        const imgH = (canvas.height * pageW) / canvas.width;
+        const pdf = new jsPDF({
+          orientation: imgH > 842 ? "portrait" : "portrait",
+          unit: "pt",
+          format: [pageW, Math.max(imgH, 842)],
+        });
+        pdf.addImage(imgData, "PNG", 0, 0, pageW, imgH);
+        pdf.save(`moneymate-${stamp}.pdf`);
+      }
+    }
+
+    function ExportMenu() {
+      const [open, setOpen] = useState(false);
+      const [busy, setBusy] = useState(null);
+      const ref = useRef(null);
+      useEffect(() => {
+        function onDoc(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+        document.addEventListener("mousedown", onDoc);
+        return () => document.removeEventListener("mousedown", onDoc);
+      }, []);
+      async function handle(kind) {
+        setOpen(false);
+        setBusy(kind);
+        try { await exportAs(kind); } catch (e) { console.error(e); alert("Sorry, couldn't export. Check console."); }
+        setBusy(null);
+      }
+      return (
+        <div className="relative" ref={ref} data-export-ignore="true">
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setOpen(o => !o)}
+            disabled={!!busy}
+            className="text-[11px] font-semibold text-ink/80 bg-white/70 hover:bg-white backdrop-blur rounded-full px-3 py-1.5 shadow-soft flex items-center gap-1.5 disabled:opacity-60"
+          >
+            {busy ? <>⏳ Saving…</> : <>⬇ Save</>}
+          </motion.button>
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                transition={{ duration: 0.18 }}
+                className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-pop p-1 z-50"
+              >
+                <button
+                  onClick={() => handle("png")}
+                  className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-cream font-medium flex items-center gap-2 transition"
+                >
+                  🖼️ Save as PNG
+                </button>
+                <button
+                  onClick={() => handle("pdf")}
+                  className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-cream font-medium flex items-center gap-2 transition"
+                >
+                  📄 Save as PDF
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      );
+    }
+
+    function SavedIndicator({ savedAt }) {
+      const [pulse, setPulse] = useState(false);
+      useEffect(() => {
+        if (!savedAt) return;
+        setPulse(true);
+        const t = setTimeout(() => setPulse(false), 900);
+        return () => clearTimeout(t);
+      }, [savedAt]);
+      return (
+        <div data-export-ignore="true" className="flex items-center gap-1.5 text-[11px] font-semibold text-ink/70 bg-white/60 backdrop-blur rounded-full px-3 py-1.5 shadow-soft">
+          <motion.span
+            animate={{ scale: pulse ? [1, 1.4, 1] : 1, backgroundColor: pulse ? "#92D9A8" : "#9DD4AB" }}
+            transition={{ duration: 0.6 }}
+            className="w-2 h-2 rounded-full bg-pgreen-300 inline-block"
+          />
+          Saved locally
+        </div>
+      );
+    }
+
+    function Header({ savedAt, onReset }) {
+      const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+      return (
+        <motion.header
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+          className="flex items-center justify-between gap-4 flex-wrap"
+        >
+          <div className="flex items-center gap-3">
+            <motion.div
+              whileHover={{ rotate: [0, -8, 8, -4, 0], scale: 1.05 }}
+              transition={{ duration: 0.6 }}
+              className="w-12 h-12 rounded-2xl bg-gradient-to-br from-peach-200 to-ppink-200 grid place-items-center shadow-soft"
+            >
+              <span className="text-2xl">💰</span>
+            </motion.div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">MoneyMate</h1>
+              <p className="text-[11px] sm:text-xs text-inkmute -mt-0.5">Your friendly money companion</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <SavedIndicator savedAt={savedAt} />
+            <div className="hidden md:flex items-center gap-2 text-sm text-inkmute bg-white/50 backdrop-blur rounded-full px-4 py-1.5 shadow-soft">
+              <span>🗓️</span>
+              <span className="font-medium">{today}</span>
+            </div>
+            <ExportMenu />
+            <motion.button
+              data-export-ignore="true"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onReset}
+              title="Clear saved data from this browser"
+              className="text-[11px] font-semibold text-ink/70 hover:text-red-600 bg-white/60 hover:bg-ppink-100 backdrop-blur rounded-full px-3 py-1.5 shadow-soft transition-colors"
+            >
+              ↺ Reset
+            </motion.button>
+          </div>
+        </motion.header>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Income card
+    // ——————————————————————————————————————————————————————————————
+    function IncomeCard({ income, setIncome, remaining, totalExpenses }) {
+      return (
+        <motion.section
+          layout
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05, duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-peach-100 via-peach-200 to-ppink-200 p-6 sm:p-8 shadow-soft"
+        >
+          <div aria-hidden className="absolute -top-8 -right-6 w-40 h-40 bg-white/40 blob-1" />
+          <div aria-hidden className="absolute -bottom-10 -left-8 w-32 h-32 bg-pyellow-200/60 blob-2" />
+          <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink/70 bg-white/50 rounded-full px-3 py-1 mb-3">
+                <span>🌱</span> Monthly Income
+              </div>
+              <div className="text-sm text-ink/60 mb-1">Enter your salary</div>
+              <MoneyInput value={income} onChange={setIncome} size="xl" placeholder="0" />
+            </div>
+            <div className="sm:text-right">
+              <div className="text-xs font-semibold text-ink/60 uppercase tracking-wider mb-1">
+                Available after expenses
+              </div>
+              <div className={`text-3xl sm:text-4xl font-extrabold ${remaining >= 0 ? "text-ink" : "text-red-600"}`}>
+                <AnimatedNumber value={remaining} prefix="₹" decimals={0} />
+              </div>
+              <div className="text-xs text-ink/60 mt-1">
+                Spending <span className="font-semibold">₹{fmt(totalExpenses)}</span> / month
+              </div>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Fixed expenses 2x2 grid
+    // ——————————————————————————————————————————————————————————————
+    const FIXED_EXPENSES = [
+      { key: "rent",        label: "Rent & Credit Card",    emoji: "🏠", grad: "from-pyellow-100 to-pyellow-200", accent: "bg-pyellow-300/30" },
+      { key: "maintenance", label: "Maintenance & Electricity", emoji: "⚡", grad: "from-pmint-100 to-pmint-200",   accent: "bg-pmint-300/30" },
+      { key: "furniture",   label: "Rented Furniture",      emoji: "🛋️", grad: "from-pblue-100 to-pblue-200",     accent: "bg-pblue-300/30" },
+      { key: "travel",      label: "Travel",                emoji: "✈️", grad: "from-ppink-100 to-ppink-200",     accent: "bg-ppink-300/30" },
+    ];
+
+    function FixedExpensesGrid({ expenses, setExpenses }) {
+      return (
+        <section>
+          <SectionHeader title="Fixed Expenses" hint="Your monthly commitments" emoji="📌" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {FIXED_EXPENSES.map((e, i) => (
+              <motion.div
+                key={e.key}
+                initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: 0.1 + i * 0.06, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+                whileHover={{ y: -4, scale: 1.01, transition: { type: "spring", stiffness: 300, damping: 20 } }}
+                className={`relative overflow-hidden rounded-3xl p-5 shadow-soft bg-gradient-to-br ${e.grad}`}
+              >
+                <div aria-hidden className={`absolute -top-6 -right-6 w-24 h-24 ${e.accent} blob-1`} />
+                <div className="relative flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-white/60 grid place-items-center text-xl shrink-0 shadow-soft">{e.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-ink/75">{e.label}</div>
+                    <div className="mt-1">
+                      <MoneyInput
+                        value={expenses[e.key]}
+                        onChange={(v) => setExpenses({ ...expenses, [e.key]: v })}
+                        size="lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    function SectionHeader({ title, hint, emoji }) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex items-baseline gap-3 mb-4 px-1"
+        >
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            {emoji && <span>{emoji}</span>} {title}
+          </h2>
+          {hint && <span className="text-xs text-inkmute">{hint}</span>}
+        </motion.div>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Subscriptions
+    // ——————————————————————————————————————————————————————————————
+    const SUB_EMOJIS = ["⭐","🎬","🎵","☁️","📚","🎮","📰","🧘","🏋️","🍜","🛒","🎙️"];
+
+    function SubscriptionsCard({ subscriptions, setSubscriptions, total }) {
+      const [name, setName] = useState("");
+      const [amount, setAmount] = useState("");
+      function add() {
+        if (!name.trim() || !amount) return;
+        setSubscriptions([
+          ...subscriptions,
+          { id: Date.now(), name: name.trim(), amount: parseFloat(amount), emoji: SUB_EMOJIS[Math.floor(Math.random() * SUB_EMOJIS.length)] },
+        ]);
+        setName(""); setAmount("");
+      }
+      return (
+        <motion.section
+          layout
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-plilac-100 to-plilac-200 p-6 shadow-soft"
+        >
+          <div aria-hidden className="absolute -top-10 -right-10 w-44 h-44 bg-white/30 blob-3" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>🔁</span> Subscriptions</h3>
+                <p className="text-xs text-ink/60">Monthly recurring charges</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-ink/60">Total</div>
+                <div className="text-xl font-extrabold">
+                  <AnimatedNumber value={total} prefix="₹" decimals={0} />
+                </div>
+              </div>
+            </div>
+
+            <LayoutGroup>
+              <ul className="space-y-2 mb-4">
+                <AnimatePresence initial={false}>
+                  {subscriptions.map((s) => (
+                    <motion.li
+                      key={s.id}
+                      layout
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, x: 40, transition: { duration: 0.25 } }}
+                      transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                      className="group flex items-center gap-3 bg-white/60 backdrop-blur rounded-2xl px-4 py-3 shadow-soft"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-white grid place-items-center text-lg shadow-soft">{s.emoji}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate">{s.name}</div>
+                      </div>
+                      <div className="font-bold tabular-nums">₹{fmt(s.amount, 0)}</div>
+                      <motion.button
+                        whileHover={{ scale: 1.1, rotate: 90 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setSubscriptions(subscriptions.filter((x) => x.id !== s.id))}
+                        className="w-8 h-8 rounded-full bg-white/70 text-ink/60 hover:bg-ppink-200 hover:text-ink transition-colors grid place-items-center"
+                        aria-label={`Remove ${s.name}`}
+                      >
+                        ✕
+                      </motion.button>
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
+                {subscriptions.length === 0 && (
+                  <li className="text-sm text-ink/50 italic text-center py-4">No subscriptions yet — add one below.</li>
+                )}
+              </ul>
+            </LayoutGroup>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()}
+                placeholder="Subscription name"
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition"
+              />
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()}
+                placeholder="₹ amount"
+                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition"
+              />
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft"
+              >
+                + Add
+              </motion.button>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Savings Goals
+    // ——————————————————————————————————————————————————————————————
+    const GOAL_EMOJIS = ["🎯","🏝️","🏡","🚗","💍","🎓","🛟","🎸","📷","🗾"];
+
+    function GoalsCard({ goals, setGoals }) {
+      const [name, setName] = useState("");
+      const [target, setTarget] = useState("");
+      function add() {
+        if (!name.trim() || !target) return;
+        setGoals([...goals, {
+          id: Date.now(),
+          name: name.trim(),
+          target: parseFloat(target),
+          saved: 0,
+          emoji: GOAL_EMOJIS[Math.floor(Math.random() * GOAL_EMOJIS.length)]
+        }]);
+        setName(""); setTarget("");
+      }
+      function update(id, field, value) {
+        setGoals(goals.map(g => g.id === id ? { ...g, [field]: parseFloat(value) || 0 } : g));
+      }
+      return (
+        <motion.section
+          layout
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-pgreen-100 to-pgreen-200 p-6 shadow-soft"
+        >
+          <div aria-hidden className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/30 blob-2" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>🏆</span> Savings Goals</h3>
+                <p className="text-xs text-ink/60">Progress toward what matters</p>
+              </div>
+            </div>
+
+            <LayoutGroup>
+              <div className="space-y-3 mb-4">
+                <AnimatePresence initial={false}>
+                  {goals.map((g) => {
+                    const pct = g.target > 0 ? Math.min(100, (g.saved / g.target) * 100) : 0;
+                    return (
+                      <motion.div
+                        key={g.id}
+                        layout
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: 40, transition: { duration: 0.25 } }}
+                        transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                        className="bg-white/70 backdrop-blur rounded-2xl p-4 shadow-soft"
+                      >
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-xl bg-white grid place-items-center text-lg shadow-soft">{g.emoji}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold truncate">{g.name}</div>
+                            <div className="text-xs text-ink/60">
+                              <span className="font-bold text-ink">₹{fmt(g.saved, 0)}</span>
+                              <span className="mx-1">of</span>
+                              <span>₹{fmt(g.target, 0)}</span>
+                              <span className="mx-2">·</span>
+                              <span className="font-semibold">{Math.round(pct)}%</span>
+                            </div>
+                          </div>
+                          <motion.button
+                            whileHover={{ scale: 1.1, rotate: 90 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setGoals(goals.filter(x => x.id !== g.id))}
+                            className="w-8 h-8 rounded-full bg-white text-ink/60 hover:bg-ppink-200 hover:text-ink transition-colors grid place-items-center"
+                            aria-label={`Remove ${g.name}`}
+                          >
+                            ✕
+                          </motion.button>
+                        </div>
+
+                        <div className="h-3 rounded-full bg-white/70 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ type: "spring", stiffness: 80, damping: 18 }}
+                            className="h-full rounded-full bg-gradient-to-r from-pgreen-300 to-pmint-300 shadow-inset"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-3">
+                          <label className="text-xs text-ink/60">Saved so far</label>
+                          <input
+                            type="number"
+                            value={g.saved}
+                            onChange={(e) => update(g.id, "saved", e.target.value)}
+                            className="w-28 rounded-xl bg-white px-3 py-1.5 text-sm font-semibold shadow-soft focus:ring-2 focus:ring-pgreen-300 transition"
+                          />
+                          <span className="text-xs text-ink/60 ml-auto">Target ₹{fmt(g.target, 0)}</span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+                {goals.length === 0 && (
+                  <div className="text-sm text-ink/50 italic text-center py-4">No goals yet — add something to save for.</div>
+                )}
+              </div>
+            </LayoutGroup>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()}
+                placeholder="Goal name (e.g. Trip to Japan)"
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pgreen-300 transition"
+              />
+              <input
+                type="number"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()}
+                placeholder="₹ target"
+                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pgreen-300 transition"
+              />
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft"
+              >
+                + Add
+              </motion.button>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Summary card (sidebar)
+    // ——————————————————————————————————————————————————————————————
+    function SummaryCard({ income, totalExpenses, remaining, savingsRate }) {
+      const positive = remaining >= 0;
+      const rateClamped = Math.max(-50, Math.min(100, savingsRate));
+      const dashArray = 2 * Math.PI * 38;
+      const dashOffset = dashArray - (dashArray * Math.max(0, Math.min(100, savingsRate))) / 100;
+      return (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-white/80 backdrop-blur p-6 shadow-pop"
+        >
+          <div aria-hidden className="absolute -top-10 -right-10 w-36 h-36 bg-plilac-100 blob-1" />
+          <div className="relative">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-lg flex items-center gap-2"><span>✨</span> Summary</h3>
+                <p className="text-xs text-ink/60">Updates in real time</p>
+              </div>
+              <div className="relative w-[92px] h-[92px] shrink-0">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88">
+                  <circle cx="44" cy="44" r="38" stroke="#EBE2CE" strokeWidth="8" fill="none" />
+                  <motion.circle
+                    cx="44" cy="44" r="38"
+                    stroke={positive ? "#92D9A8" : "#FFA7BF"}
+                    strokeWidth="8"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={dashArray}
+                    animate={{ strokeDashoffset: dashOffset }}
+                    transition={{ type: "spring", stiffness: 80, damping: 20 }}
+                  />
+                </svg>
+                <div className="absolute inset-0 grid place-items-center text-center">
+                  <div>
+                    <div className={`text-lg font-extrabold ${positive ? "text-ink" : "text-red-600"}`}>
+                      <AnimatedNumber value={Math.round(rateClamped)} />%
+                    </div>
+                    <div className="text-[9px] text-ink/50 uppercase tracking-wider">save rate</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="bg-peach-100 rounded-2xl px-3 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Income</div>
+                <div className="text-base font-extrabold"><AnimatedNumber value={num(income)} prefix="₹" /></div>
+              </div>
+              <div className="bg-ppink-100 rounded-2xl px-3 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Expenses</div>
+                <div className="text-base font-extrabold"><AnimatedNumber value={totalExpenses} prefix="₹" /></div>
+              </div>
+            </div>
+
+            <motion.div
+              layout
+              animate={{
+                backgroundColor: positive ? "rgba(198, 236, 206, 0.9)" : "rgba(255, 200, 212, 0.9)",
+              }}
+              transition={{ duration: 0.4 }}
+              className="rounded-2xl px-4 py-3 flex items-center justify-between"
+            >
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-ink/70 font-semibold">Remaining</div>
+                <div className={`text-2xl font-extrabold ${positive ? "text-ink" : "text-red-700"}`}>
+                  <AnimatedNumber value={remaining} prefix={positive ? "₹" : "-₹"} decimals={0} />
+                </div>
+              </div>
+              <motion.div
+                key={positive ? "good" : "bad"}
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-3xl"
+              >
+                {positive ? "🌿" : "🚨"}
+              </motion.div>
+            </motion.div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  AI Advisor (rule-based, context-aware)
+    // ——————————————————————————————————————————————————————————————
+    function generateAdvice(q, ctx) {
+      const { income, totalExpenses, totalFixed, totalSubs, remaining, savingsRate, expenses, subscriptions, goals } = ctx;
+      const s = q.toLowerCase();
+
+      const numberMatch = s.match(/[₹$]?\s*([\d,]+(?:\.\d+)?)\s*(k|thousand|lakhs?|l|crores?|cr)?/i);
+      let amount = null;
+      if (numberMatch) {
+        amount = parseFloat(numberMatch[1].replace(/,/g, ""));
+        const unit = (numberMatch[2] || "").toLowerCase();
+        if (unit === "k" || unit === "thousand") amount *= 1000;
+        else if (unit === "l" || unit === "lakh" || unit === "lakhs") amount *= 100000;
+        else if (unit === "cr" || unit === "crore" || unit === "crores") amount *= 10000000;
+      }
+
+      // 1. Affordability
+      if (/\b(afford|buy|purchase|get|spend|should i|can i)\b/.test(s) && amount !== null) {
+        if (remaining <= 0) {
+          return `Honest answer: right now you're running a ₹${fmt(Math.abs(remaining))} deficit each month — buying a ₹${fmt(amount)} thing would deepen the hole. Let's fix the monthly gap first. Want me to point at where to cut?`;
+        }
+        if (amount <= remaining * 0.5) {
+          return `Yes 💚 At ₹${fmt(amount)}, that's only ~${Math.round((amount / remaining) * 100)}% of your ₹${fmt(remaining)} cushion this month. Totally affordable. Just ask: does it move me closer to my goals, or sideways?`;
+        }
+        if (amount <= remaining) {
+          return `Technically yes — but it'd eat ${Math.round((amount / remaining) * 100)}% of your ₹${fmt(remaining)} remaining, leaving ₹${fmt(remaining - amount)} for anything unexpected. I'd sleep on it for 48 hours first.`;
+        }
+        const months = Math.ceil(amount / remaining);
+        return `Not this month. ₹${fmt(amount)} is ₹${fmt(amount - remaining)} more than your ₹${fmt(remaining)} cushion. At your current pace, you could save for it in about ${months} month${months > 1 ? "s" : ""} — or trim expenses to get there faster.`;
+      }
+
+      // 2. Budget optimization / overspending
+      if (/\b(overspend|cut|reduce|trim|optimi[sz]e|save money|biggest|largest|expensive|where.*go|where.*spend)\b/.test(s)) {
+        const map = [
+          ["🏠 Rent & Credit Card", num(expenses.rent)],
+          ["⚡ Maintenance & Electricity", num(expenses.maintenance)],
+          ["🛋️ Rented Furniture", num(expenses.furniture)],
+          ["✈️ Travel", num(expenses.travel)],
+          ["🔁 Subscriptions", totalSubs],
+        ].sort((a, b) => b[1] - a[1]);
+        if (map[0][1] === 0) return "Add some expenses first and I'll point at the biggest opportunities to trim.";
+        const top = map[0], second = map[1];
+        return `Your biggest bucket is ${top[0]} at ₹${fmt(top[1])} — that's ${Math.round((top[1] / totalExpenses) * 100)}% of your total. A 10% trim there = ₹${fmt(top[1] * 0.1)} back in your pocket. Next up: ${second[0]} at ₹${fmt(second[1])}. Fun rule: cutting one big thing by 10% beats cutting ten small things by 1%.`;
+      }
+
+      // 3. Subscription audit
+      if (/\bsubscription/.test(s)) {
+        if (subscriptions.length === 0) return "No subscriptions logged yet — add them and I'll help you audit.";
+        const annual = totalSubs * 12;
+        const pct = income > 0 ? ((totalSubs / income) * 100).toFixed(1) : "—";
+        const sorted = [...subscriptions].sort((a, b) => b.amount - a.amount);
+        const biggest = sorted[0];
+        return `You have ${subscriptions.length} subscription${subscriptions.length > 1 ? "s" : ""} = ₹${fmt(totalSubs, 0)}/month = ₹${fmt(annual)}/year (${pct}% of income). The biggest is ${biggest.emoji} ${biggest.name} at ₹${fmt(biggest.amount, 0)}. The audit test: did you actually use each one in the last 30 days? If no → cancel. It's the easiest "raise" you can give yourself.`;
+      }
+
+      // 4. Savings strategy
+      if (/\b(save|saving|emergency|strategy|how.*save)\b/.test(s)) {
+        if (income === 0) return "Add your monthly income first and I'll build you a real savings plan.";
+        const target = income * 0.2;
+        const base = `Healthy target: 20% of income = ₹${fmt(target)}/month. You're at ${Math.round(savingsRate)}%.`;
+        if (savingsRate >= 25) return `${base} You're ahead of the curve 🌟. Make sure that money is actually going somewhere productive — a high-yield savings account, mutual fund SIPs, or your goal buckets — not just sitting idle.`;
+        if (savingsRate >= 15) return `${base} Solid. To push higher, try 'pay yourself first': the day salary lands, auto-transfer ₹${fmt(target)} to savings before anything else. You'll spend what's left and barely notice.`;
+        if (savingsRate >= 0)  return `${base} Room to grow. Start tiny: set up a SIP or auto-transfer of ₹${fmt(Math.max(500, remaining * 0.3))} the day income lands, before bills. Small + consistent beats ambitious + abandoned.`;
+        return `${base} You're spending more than you earn right now. Savings strategy starts with closing that gap — want me to point at your biggest expense?`;
+      }
+
+      // 5. Goals progress
+      if (/\b(goal|target|progress)\b/.test(s)) {
+        if (goals.length === 0) return "No goals yet — add one in the Savings Goals section and I can pace it for you.";
+        const totalTarget = goals.reduce((a, g) => a + g.target, 0);
+        const totalSaved = goals.reduce((a, g) => a + g.saved, 0);
+        const overallPct = Math.round((totalSaved / Math.max(1, totalTarget)) * 100);
+        const eta = remaining > 0 ? Math.ceil((totalTarget - totalSaved) / remaining) : null;
+        const lead = `You're ${overallPct}% toward your combined ₹${fmt(totalTarget)} targets (₹${fmt(totalSaved)} saved).`;
+        if (eta && eta > 0) return `${lead} At ₹${fmt(remaining)}/month remaining, you'd clear all of them in ~${eta} month${eta > 1 ? "s" : ""}. Tip: funnel any expense cuts directly into your biggest-emotion goal to keep momentum.`;
+        return `${lead} Your cushion is zero or negative this month though — trim something before funding goals, otherwise you're just shuffling money around.`;
+      }
+
+      // 6. Overall check-in
+      if (/\b(how.*doing|health|status|summary|overview|check[- ]?in)\b/.test(s)) {
+        if (income === 0) return "Enter your income and I'll give you an honest read on your financial health.";
+        if (remaining < 0)    return `You're ₹${fmt(Math.abs(remaining))} in the red this month. That's the one thing to fix — a negative cushion compounds into debt or missed goals. Let's find a 10–15% trim in your biggest bucket.`;
+        if (savingsRate >= 30) return `Financially? Thriving. ${Math.round(savingsRate)}% savings rate is top-decile. Main risk is lifestyle creep — lock it in with automated SIPs or transfers 🔒.`;
+        if (savingsRate >= 15) return `Healthy. ${Math.round(savingsRate)}% savings rate, ₹${fmt(remaining)} cushion. One nudge: name every rupee — assign the cushion to a goal so it doesn't quietly drift into spending.`;
+        return `Okay but tight. ${Math.round(savingsRate)}% savings rate is below the 20% benchmark. Your cushion (₹${fmt(remaining)}) is fragile — one surprise expense wipes it. Protect it by paying savings first.`;
+      }
+
+      // 7. Default help
+      return `Ask me things like:\n• "Can I afford a ₹50,000 laptop?"\n• "Where am I overspending?"\n• "How are my subscriptions?"\n• "How can I save more?"\n• "How am I doing overall?"`;
+    }
+
+    function TypingDots() {
+      return (
+        <div className="flex items-center gap-0.5">
+          <span className="dot" /><span className="dot" /><span className="dot" />
+        </div>
+      );
+    }
+
+    function AIChatCard({ ctx }) {
+      const [messages, setMessages] = useState([
+        { id: 0, role: "ai", text: "Hey 👋 I'm Mate, your money buddy. Ask me about affordability, savings, subscriptions, or just \"how am I doing?\"" },
+      ]);
+      const [input, setInput] = useState("");
+      const [isTyping, setIsTyping] = useState(false);
+      const scrollRef = useRef(null);
+      useEffect(() => {
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+      }, [messages, isTyping]);
+
+      function send(e) {
+        e?.preventDefault();
+        const text = input.trim();
+        if (!text || isTyping) return;
+        const userMsg = { id: Date.now(), role: "user", text };
+        setMessages((m) => [...m, userMsg]);
+        setInput("");
+        setIsTyping(true);
+        const delay = 600 + Math.random() * 600;
+        setTimeout(() => {
+          const reply = { id: Date.now() + 1, role: "ai", text: generateAdvice(text, ctx) };
+          setMessages((m) => [...m, reply]);
+          setIsTyping(false);
+        }, delay);
+      }
+
+      const suggestions = [
+        "Can I afford a ₹50,000 laptop?",
+        "Where am I overspending?",
+        "How are my subscriptions?",
+        "How am I doing?",
+      ];
+
+      return (
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18, duration: 0.55 }}
+          data-export-ignore="true"
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-plilac-100 to-plilac-200 shadow-pop flex flex-col min-h-0 flex-1"
+        >
+          <div aria-hidden className="absolute -bottom-12 -right-10 w-40 h-40 bg-white/30 blob-3 pointer-events-none" />
+
+          {/* Header */}
+          <div className="relative px-5 pt-5 pb-3 flex items-center gap-3">
+            <motion.div
+              animate={{ scale: [1, 1.08, 1] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+              className="w-10 h-10 rounded-2xl bg-white/80 grid place-items-center text-lg shadow-soft"
+            >
+              💜
+            </motion.div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm">Mate · AI Advisor</div>
+              <div className="text-[11px] text-ink/60 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-pgreen-300 inline-block" /> context-aware · session only
+              </div>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div
+            ref={scrollRef}
+            className="relative flex-1 min-h-[260px] max-h-[520px] lg:max-h-none overflow-y-auto thin-scroll px-4 py-2 space-y-2"
+          >
+            <AnimatePresence initial={false}>
+              {messages.map((m) => (
+                <motion.div
+                  key={m.id}
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[86%] rounded-3xl px-4 py-2.5 text-sm leading-relaxed shadow-soft whitespace-pre-wrap ${
+                      m.role === "user"
+                        ? "bg-ink text-cream rounded-br-lg"
+                        : "bg-white/90 text-ink rounded-bl-lg"
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                </motion.div>
+              ))}
+              {isTyping && (
+                <motion.div
+                  key="typing"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-white/90 rounded-3xl rounded-bl-lg px-4 py-3 shadow-soft">
+                    <TypingDots />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Suggestions */}
+          {messages.length <= 1 && !isTyping && (
+            <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+              {suggestions.map((sg) => (
+                <motion.button
+                  key={sg}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => { setInput(sg); setTimeout(() => send(), 0); }}
+                  className="text-[11px] font-medium bg-white/70 hover:bg-white rounded-full px-3 py-1.5 text-ink/75 transition"
+                >
+                  {sg}
+                </motion.button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <form onSubmit={send} className="relative p-3 pt-2 flex items-center gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask me anything about your money…"
+              className="flex-1 rounded-2xl bg-white/90 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition"
+            />
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="submit"
+              disabled={!input.trim() || isTyping}
+              className="rounded-2xl bg-ink text-cream font-semibold px-4 py-3 text-sm shadow-soft disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ➤
+            </motion.button>
+          </form>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Root
+    // ——————————————————————————————————————————————————————————————
+    function App() {
+      const [income, setIncome, incomeSavedAt] = usePersistedState("moneymate:income", "80000");
+      const [expenses, setExpenses, expensesSavedAt] = usePersistedState("moneymate:expenses", {
+        rent: "25000", maintenance: "3000", furniture: "2000", travel: "4000"
+      });
+      const [subscriptions, setSubscriptions, subsSavedAt] = usePersistedState("moneymate:subscriptions", [
+        { id: 1, name: "Netflix",  amount: 649, emoji: "🎬" },
+        { id: 2, name: "Spotify",  amount: 119, emoji: "🎵" },
+        { id: 3, name: "Hotstar",  amount: 299, emoji: "📺" },
+        { id: 4, name: "iCloud+",  amount: 75,  emoji: "☁️" },
+      ]);
+      const [goals, setGoals, goalsSavedAt] = usePersistedState("moneymate:goals", [
+        { id: 1, name: "Emergency Fund", target: 100000, saved: 25000, emoji: "🛟" },
+        { id: 2, name: "Trip to Japan",  target: 200000, saved: 45000, emoji: "🗾" },
+      ]);
+      const lastSavedAt = Math.max(incomeSavedAt || 0, expensesSavedAt || 0, subsSavedAt || 0, goalsSavedAt || 0);
+
+      function resetAllData() {
+        if (!window.confirm("Clear all your MoneyMate data from this browser? This cannot be undone.")) return;
+        ["moneymate:income", "moneymate:expenses", "moneymate:subscriptions", "moneymate:goals"].forEach(k => {
+          try { window.localStorage.removeItem(k); } catch (e) {}
+        });
+        window.location.reload();
+      }
+
+      const totalFixed = useMemo(
+        () => Object.values(expenses).reduce((a, b) => a + num(b), 0),
+        [expenses]
+      );
+      const totalSubs = useMemo(
+        () => subscriptions.reduce((a, s) => a + num(s.amount), 0),
+        [subscriptions]
+      );
+      const totalExpenses = totalFixed + totalSubs;
+      const remaining = num(income) - totalExpenses;
+      const savingsRate = num(income) > 0 ? (remaining / num(income)) * 100 : 0;
+
+      const ctx = {
+        income: num(income), totalExpenses, totalFixed, totalSubs,
+        remaining, savingsRate, expenses, subscriptions, goals,
+      };
+
+      return (
+        <div className="min-h-screen relative overflow-x-hidden">
+          {/* ambient organic blobs */}
+          <div aria-hidden data-export-ignore="true" className="pointer-events-none fixed inset-0 overflow-hidden">
+            <motion.div
+              animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
+              transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-ppink-200/35 blob-1 blur-3xl"
+            />
+            <motion.div
+              animate={{ x: [0, -40, 0], y: [0, 30, 0] }}
+              transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] bg-plilac-200/30 blob-2 blur-3xl"
+            />
+            <motion.div
+              animate={{ x: [0, 40, 0], y: [0, -40, 0] }}
+              transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -bottom-32 left-1/4 w-[26rem] h-[26rem] bg-pmint-200/35 blob-3 blur-3xl"
+            />
+          </div>
+
+          <div data-export-root className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
+            <Header savedAt={lastSavedAt} onReset={resetAllData} />
+
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-6 lg:gap-8">
+              <main className="space-y-6 min-w-0">
+                <IncomeCard income={income} setIncome={setIncome} remaining={remaining} totalExpenses={totalExpenses} />
+                <FixedExpensesGrid expenses={expenses} setExpenses={setExpenses} />
+                <SubscriptionsCard subscriptions={subscriptions} setSubscriptions={setSubscriptions} total={totalSubs} />
+                <GoalsCard goals={goals} setGoals={setGoals} />
+              </main>
+
+              <aside className="lg:sticky lg:top-6 lg:self-start lg:h-[calc(100vh-3rem)] flex flex-col gap-5 min-h-0">
+                <SummaryCard
+                  income={income}
+                  totalExpenses={totalExpenses}
+                  remaining={remaining}
+                  savingsRate={savingsRate}
+                />
+                <AIChatCard ctx={ctx} />
+              </aside>
+            </div>
+
+            <footer data-export-ignore="true" className="mt-10 text-center text-xs text-ink/40">
+              MoneyMate · data stays in your browser · made with 💜
+            </footer>
+          </div>
+        </div>
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
