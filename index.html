@@ -25,6 +25,10 @@
             ppink:  { 100: "#FFDBE7", 200: "#FFCCDB", 300: "#FFA7BF" },
             plilac: { 100: "#E8DBF7", 200: "#DCCBF2", 300: "#C1A8E8" },
             pgreen: { 100: "#DDF0E0", 200: "#C8E8CE", 300: "#9DD4AB" },
+            ptan:   { 100: "#F3E4CD", 200: "#E8D1A8", 300: "#D9B378" },
+            prose:  { 100: "#FBD5DD", 200: "#F4B5C3", 300: "#E68FA4" },
+            psky:   { 100: "#D1E9F5", 200: "#B0D6EA", 300: "#82BBDA" },
+            pcoral: { 100: "#FFE0CC", 200: "#FFC19A", 300: "#FFA064" },
           },
           boxShadow: {
             soft: "0 10px 30px -8px rgba(45,36,32,0.10), 0 3px 10px -4px rgba(45,36,32,0.04)",
@@ -40,19 +44,15 @@
     html, body { background: #F5EFE0; color: #2D2420; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
     *:focus { outline: none; }
     input::placeholder, textarea::placeholder { color: #8a7f77; }
-    /* hide number spinners */
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
-    /* thin scrollbar */
     .thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
     .thin-scroll::-webkit-scrollbar-thumb { background: rgba(45,36,32,0.22); border-radius: 999px; }
     .thin-scroll::-webkit-scrollbar-track { background: transparent; }
-    /* organic blob radii */
     .blob-1 { border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%; }
     .blob-2 { border-radius: 40% 60% 30% 70% / 60% 40% 70% 50%; }
     .blob-3 { border-radius: 70% 30% 50% 50% / 40% 70% 30% 60%; }
-    /* typing dots */
     @keyframes dotb { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-4px); opacity: 1; } }
     .dot { display: inline-block; width: 6px; height: 6px; margin: 0 2px; border-radius: 999px; background: #6B5E54; animation: dotb 1.2s infinite ease-in-out; }
     .dot:nth-child(2) { animation-delay: 0.15s; }
@@ -84,76 +84,29 @@
     // ——————————————————————————————————————————————————————————————
     //  Helpers
     // ——————————————————————————————————————————————————————————————
-    const num = (v) => {
-      const n = parseFloat(v);
-      return Number.isFinite(n) ? n : 0;
-    };
+    const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
     const fmt = (n, decimals = 0) =>
       Number(n).toLocaleString("en-IN", {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
       });
 
-    // Persist state to localStorage — survives reloads & browser restarts.
     function usePersistedState(key, defaultValue) {
       const [value, setValue] = useState(() => {
         try {
           const raw = window.localStorage.getItem(key);
           if (raw !== null) return JSON.parse(raw);
-        } catch (e) { /* private mode, quota, etc. */ }
+        } catch (e) {}
         return defaultValue;
       });
       const [savedAt, setSavedAt] = useState(null);
       useEffect(() => {
-        try {
-          window.localStorage.setItem(key, JSON.stringify(value));
-          setSavedAt(Date.now());
-        } catch (e) { /* noop */ }
+        try { window.localStorage.setItem(key, JSON.stringify(value)); setSavedAt(Date.now()); } catch (e) {}
       }, [key, value]);
       return [value, setValue, savedAt];
     }
 
-    // Animated number that springs toward target
-    function AnimatedNumber({ value, prefix = "", decimals = 0, className = "" }) {
-      const spring = useSpring(value, { stiffness: 70, damping: 20, mass: 0.8 });
-      const [display, setDisplay] = useState(value);
-      useEffect(() => { spring.set(value); }, [value, spring]);
-      useEffect(() => spring.on("change", (v) => setDisplay(v)), [spring]);
-      return (
-        <span className={className}>
-          {prefix}{fmt(display, decimals)}
-        </span>
-      );
-    }
-
-    // Field wrapper with friendly large input
-    function MoneyInput({ value, onChange, placeholder = "0", size = "md", prefix = "₹" }) {
-      const sizeCls = size === "xl"
-        ? "text-4xl sm:text-5xl font-extrabold"
-        : size === "lg"
-        ? "text-2xl font-bold"
-        : "text-xl font-semibold";
-      return (
-        <div className="flex items-baseline gap-1.5">
-          <span className={`${sizeCls} text-ink/60`}>{prefix}</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className={`${sizeCls} bg-transparent w-full min-w-0 placeholder:text-ink/25 focus:placeholder:text-ink/15 transition-colors`}
-          />
-        </div>
-      );
-    }
-
-    // ——————————————————————————————————————————————————————————————
-    //  Header
-    // ——————————————————————————————————————————————————————————————
-    // Export helpers — captures the dashboard as PNG or PDF using html2canvas + jsPDF.
     async function snapshotNode(node) {
-      // Give any in-flight animations a beat to settle, then rasterize.
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       return window.html2canvas(node, {
         backgroundColor: "#F5EFE0",
@@ -181,72 +134,60 @@
       if (kind === "pdf" && window.jspdf) {
         const { jsPDF } = window.jspdf;
         const imgData = canvas.toDataURL("image/png");
-        const pageW = 595.28; // A4 width in pt
+        const pageW = 595.28;
         const imgH = (canvas.height * pageW) / canvas.width;
-        const pdf = new jsPDF({
-          orientation: imgH > 842 ? "portrait" : "portrait",
-          unit: "pt",
-          format: [pageW, Math.max(imgH, 842)],
-        });
+        const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: [pageW, Math.max(imgH, 842)] });
         pdf.addImage(imgData, "PNG", 0, 0, pageW, imgH);
         pdf.save(`moneymate-${stamp}.pdf`);
       }
     }
 
-    function ExportMenu() {
-      const [open, setOpen] = useState(false);
-      const [busy, setBusy] = useState(null);
-      const ref = useRef(null);
-      useEffect(() => {
-        function onDoc(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-        document.addEventListener("mousedown", onDoc);
-        return () => document.removeEventListener("mousedown", onDoc);
-      }, []);
-      async function handle(kind) {
-        setOpen(false);
-        setBusy(kind);
-        try { await exportAs(kind); } catch (e) { console.error(e); alert("Sorry, couldn't export. Check console."); }
-        setBusy(null);
-      }
+    // ——————————————————————————————————————————————————————————————
+    //  Primitives
+    // ——————————————————————————————————————————————————————————————
+    function AnimatedNumber({ value, prefix = "", decimals = 0, className = "" }) {
+      const spring = useSpring(value, { stiffness: 70, damping: 20, mass: 0.8 });
+      const [display, setDisplay] = useState(value);
+      useEffect(() => { spring.set(value); }, [value, spring]);
+      useEffect(() => spring.on("change", (v) => setDisplay(v)), [spring]);
+      return <span className={className}>{prefix}{fmt(display, decimals)}</span>;
+    }
+
+    function MoneyInput({ value, onChange, placeholder = "0", size = "md", prefix = "₹" }) {
+      const sizeCls = size === "xl" ? "text-4xl sm:text-5xl font-extrabold"
+        : size === "lg" ? "text-2xl font-bold"
+        : "text-xl font-semibold";
       return (
-        <div className="relative" ref={ref} data-export-ignore="true">
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => setOpen(o => !o)}
-            disabled={!!busy}
-            className="text-[11px] font-semibold text-ink/80 bg-white/70 hover:bg-white backdrop-blur rounded-full px-3 py-1.5 shadow-soft flex items-center gap-1.5 disabled:opacity-60"
-          >
-            {busy ? <>⏳ Saving…</> : <>⬇ Save</>}
-          </motion.button>
-          <AnimatePresence>
-            {open && (
-              <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                transition={{ duration: 0.18 }}
-                className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-pop p-1 z-50"
-              >
-                <button
-                  onClick={() => handle("png")}
-                  className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-cream font-medium flex items-center gap-2 transition"
-                >
-                  🖼️ Save as PNG
-                </button>
-                <button
-                  onClick={() => handle("pdf")}
-                  className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-cream font-medium flex items-center gap-2 transition"
-                >
-                  📄 Save as PDF
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="flex items-baseline gap-1.5">
+          <span className={`${sizeCls} text-ink/60`}>{prefix}</span>
+          <input type="number" inputMode="decimal" value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className={`${sizeCls} bg-transparent w-full min-w-0 placeholder:text-ink/25 focus:placeholder:text-ink/15 transition-colors`} />
         </div>
       );
     }
 
+    function SectionHeader({ title, hint, emoji }) {
+      return (
+        <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex items-baseline gap-3 mb-4 px-1">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            {emoji && <span>{emoji}</span>} {title}
+          </h2>
+          {hint && <span className="text-xs text-inkmute">{hint}</span>}
+        </motion.div>
+      );
+    }
+
+    function TypingDots() {
+      return <div className="flex items-center gap-0.5"><span className="dot" /><span className="dot" /><span className="dot" /></div>;
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Header, saved indicator, export menu
+    // ——————————————————————————————————————————————————————————————
     function SavedIndicator({ savedAt }) {
       const [pulse, setPulse] = useState(false);
       useEffect(() => {
@@ -260,9 +201,49 @@
           <motion.span
             animate={{ scale: pulse ? [1, 1.4, 1] : 1, backgroundColor: pulse ? "#92D9A8" : "#9DD4AB" }}
             transition={{ duration: 0.6 }}
-            className="w-2 h-2 rounded-full bg-pgreen-300 inline-block"
-          />
+            className="w-2 h-2 rounded-full bg-pgreen-300 inline-block" />
           Saved locally
+        </div>
+      );
+    }
+
+    function ExportMenu() {
+      const [open, setOpen] = useState(false);
+      const [busy, setBusy] = useState(null);
+      const ref = useRef(null);
+      useEffect(() => {
+        function onDoc(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+        document.addEventListener("mousedown", onDoc);
+        return () => document.removeEventListener("mousedown", onDoc);
+      }, []);
+      async function handle(kind) {
+        setOpen(false); setBusy(kind);
+        try { await exportAs(kind); } catch (e) { console.error(e); alert("Couldn't export. See console."); }
+        setBusy(null);
+      }
+      return (
+        <div className="relative" ref={ref} data-export-ignore="true">
+          <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+            onClick={() => setOpen(o => !o)} disabled={!!busy}
+            className="text-[11px] font-semibold text-ink/80 bg-white/70 hover:bg-white backdrop-blur rounded-full px-3 py-1.5 shadow-soft flex items-center gap-1.5 disabled:opacity-60">
+            {busy ? <>⏳ Saving…</> : <>⬇ Save</>}
+          </motion.button>
+          <AnimatePresence>
+            {open && (
+              <motion.div initial={{ opacity: 0, y: -6, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.96 }} transition={{ duration: 0.18 }}
+                className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-pop p-1 z-50">
+                <button onClick={() => handle("png")}
+                  className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-cream font-medium flex items-center gap-2 transition">
+                  🖼️ Save as PNG
+                </button>
+                <button onClick={() => handle("pdf")}
+                  className="w-full text-left text-sm px-3 py-2 rounded-xl hover:bg-cream font-medium flex items-center gap-2 transition">
+                  📄 Save as PDF
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       );
     }
@@ -270,18 +251,12 @@
     function Header({ savedAt, onReset }) {
       const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
       return (
-        <motion.header
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
+        <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
-          className="flex items-center justify-between gap-4 flex-wrap"
-        >
+          className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <motion.div
-              whileHover={{ rotate: [0, -8, 8, -4, 0], scale: 1.05 }}
-              transition={{ duration: 0.6 }}
-              className="w-12 h-12 rounded-2xl bg-gradient-to-br from-peach-200 to-ppink-200 grid place-items-center shadow-soft"
-            >
+            <motion.div whileHover={{ rotate: [0, -8, 8, -4, 0], scale: 1.05 }} transition={{ duration: 0.6 }}
+              className="w-12 h-12 rounded-2xl bg-gradient-to-br from-peach-200 to-ppink-200 grid place-items-center shadow-soft">
               <span className="text-2xl">💰</span>
             </motion.div>
             <div>
@@ -292,18 +267,12 @@
           <div className="flex items-center gap-2">
             <SavedIndicator savedAt={savedAt} />
             <div className="hidden md:flex items-center gap-2 text-sm text-inkmute bg-white/50 backdrop-blur rounded-full px-4 py-1.5 shadow-soft">
-              <span>🗓️</span>
-              <span className="font-medium">{today}</span>
+              <span>🗓️</span><span className="font-medium">{today}</span>
             </div>
             <ExportMenu />
-            <motion.button
-              data-export-ignore="true"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onReset}
-              title="Clear saved data from this browser"
-              className="text-[11px] font-semibold text-ink/70 hover:text-red-600 bg-white/60 hover:bg-ppink-100 backdrop-blur rounded-full px-3 py-1.5 shadow-soft transition-colors"
-            >
+            <motion.button data-export-ignore="true" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={onReset} title="Clear saved data from this browser"
+              className="text-[11px] font-semibold text-ink/70 hover:text-red-600 bg-white/60 hover:bg-ppink-100 backdrop-blur rounded-full px-3 py-1.5 shadow-soft transition-colors">
               ↺ Reset
             </motion.button>
           </div>
@@ -312,36 +281,33 @@
     }
 
     // ——————————————————————————————————————————————————————————————
-    //  Income card
+    //  Income Card — main salary
     // ——————————————————————————————————————————————————————————————
-    function IncomeCard({ income, setIncome, remaining, totalExpenses }) {
+    function IncomeCard({ income, setIncome, totalIncome, remaining, totalExpenses, totalInvestments }) {
       return (
-        <motion.section
-          layout
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05, duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
-          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-peach-100 via-peach-200 to-ppink-200 p-6 sm:p-8 shadow-soft"
-        >
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-peach-100 via-peach-200 to-ppink-200 p-6 sm:p-8 shadow-soft">
           <div aria-hidden className="absolute -top-8 -right-6 w-40 h-40 bg-white/40 blob-1" />
           <div aria-hidden className="absolute -bottom-10 -left-8 w-32 h-32 bg-pyellow-200/60 blob-2" />
           <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink/70 bg-white/50 rounded-full px-3 py-1 mb-3">
-                <span>🌱</span> Monthly Income
+                <span>🌱</span> Monthly Salary
               </div>
               <div className="text-sm text-ink/60 mb-1">Enter your salary</div>
               <MoneyInput value={income} onChange={setIncome} size="xl" placeholder="0" />
             </div>
             <div className="sm:text-right">
               <div className="text-xs font-semibold text-ink/60 uppercase tracking-wider mb-1">
-                Available after expenses
+                Cushion after everything
               </div>
               <div className={`text-3xl sm:text-4xl font-extrabold ${remaining >= 0 ? "text-ink" : "text-red-600"}`}>
                 <AnimatedNumber value={remaining} prefix="₹" decimals={0} />
               </div>
-              <div className="text-xs text-ink/60 mt-1">
-                Spending <span className="font-semibold">₹{fmt(totalExpenses)}</span> / month
+              <div className="text-xs text-ink/60 mt-1 space-y-0.5">
+                <div>Total in <span className="font-semibold">₹{fmt(totalIncome)}</span></div>
+                <div>Spending <span className="font-semibold">₹{fmt(totalExpenses)}</span> · Investing <span className="font-semibold">₹{fmt(totalInvestments)}</span></div>
               </div>
             </div>
           </div>
@@ -350,163 +316,85 @@
     }
 
     // ——————————————————————————————————————————————————————————————
-    //  Fixed expenses 2x2 grid
+    //  Generic animated list row (used by multiple cards)
     // ——————————————————————————————————————————————————————————————
-    const FIXED_EXPENSES = [
-      { key: "rent",        label: "Rent & Credit Card",    emoji: "🏠", grad: "from-pyellow-100 to-pyellow-200", accent: "bg-pyellow-300/30" },
-      { key: "maintenance", label: "Maintenance & Electricity", emoji: "⚡", grad: "from-pmint-100 to-pmint-200",   accent: "bg-pmint-300/30" },
-      { key: "furniture",   label: "Rented Furniture",      emoji: "🛋️", grad: "from-pblue-100 to-pblue-200",     accent: "bg-pblue-300/30" },
-      { key: "travel",      label: "Travel",                emoji: "✈️", grad: "from-ppink-100 to-ppink-200",     accent: "bg-ppink-300/30" },
-    ];
-
-    function FixedExpensesGrid({ expenses, setExpenses }) {
+    function ListRow({ item, onRemove, rightSlot, badge, focusRing = "focus:ring-plilac-300" }) {
       return (
-        <section>
-          <SectionHeader title="Fixed Expenses" hint="Your monthly commitments" emoji="📌" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {FIXED_EXPENSES.map((e, i) => (
-              <motion.div
-                key={e.key}
-                initial={{ opacity: 0, y: 20, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ delay: 0.1 + i * 0.06, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
-                whileHover={{ y: -4, scale: 1.01, transition: { type: "spring", stiffness: 300, damping: 20 } }}
-                className={`relative overflow-hidden rounded-3xl p-5 shadow-soft bg-gradient-to-br ${e.grad}`}
-              >
-                <div aria-hidden className={`absolute -top-6 -right-6 w-24 h-24 ${e.accent} blob-1`} />
-                <div className="relative flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-white/60 grid place-items-center text-xl shrink-0 shadow-soft">{e.emoji}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-ink/75">{e.label}</div>
-                    <div className="mt-1">
-                      <MoneyInput
-                        value={expenses[e.key]}
-                        onChange={(v) => setExpenses({ ...expenses, [e.key]: v })}
-                        size="lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+        <motion.li layout
+          initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, x: 40, transition: { duration: 0.25 } }}
+          transition={{ type: "spring", stiffness: 260, damping: 24 }}
+          className="group flex items-center gap-3 bg-white/60 backdrop-blur rounded-2xl px-4 py-3 shadow-soft">
+          <div className="w-9 h-9 rounded-xl bg-white grid place-items-center text-lg shadow-soft">{item.emoji || "💰"}</div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold truncate flex items-center gap-2">
+              {item.name}
+              {badge}
+            </div>
           </div>
-        </section>
-      );
-    }
-
-    function SectionHeader({ title, hint, emoji }) {
-      return (
-        <motion.div
-          initial={{ opacity: 0, x: -8 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex items-baseline gap-3 mb-4 px-1"
-        >
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            {emoji && <span>{emoji}</span>} {title}
-          </h2>
-          {hint && <span className="text-xs text-inkmute">{hint}</span>}
-        </motion.div>
+          {rightSlot}
+          <motion.button whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }}
+            onClick={onRemove}
+            className="w-8 h-8 rounded-full bg-white/70 text-ink/60 hover:bg-ppink-200 hover:text-ink transition-colors grid place-items-center"
+            aria-label={`Remove ${item.name}`}>✕</motion.button>
+        </motion.li>
       );
     }
 
     // ——————————————————————————————————————————————————————————————
-    //  Subscriptions
+    //  Disposable Income — freelance / family etc.
     // ——————————————————————————————————————————————————————————————
-    const SUB_EMOJIS = ["⭐","🎬","🎵","☁️","📚","🎮","📰","🧘","🏋️","🍜","🛒","🎙️"];
-
-    function SubscriptionsCard({ subscriptions, setSubscriptions, total }) {
+    function DisposableIncomeCard({ items, setItems, total }) {
       const [name, setName] = useState("");
       const [amount, setAmount] = useState("");
       function add() {
         if (!name.trim() || !amount) return;
-        setSubscriptions([
-          ...subscriptions,
-          { id: Date.now(), name: name.trim(), amount: parseFloat(amount), emoji: SUB_EMOJIS[Math.floor(Math.random() * SUB_EMOJIS.length)] },
-        ]);
+        setItems([...items, { id: Date.now(), name: name.trim(), amount: parseFloat(amount), emoji: "💸" }]);
         setName(""); setAmount("");
       }
       return (
-        <motion.section
-          layout
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.55 }}
-          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-plilac-100 to-plilac-200 p-6 shadow-soft"
-        >
-          <div aria-hidden className="absolute -top-10 -right-10 w-44 h-44 bg-white/30 blob-3" />
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-pcoral-100 to-pcoral-200 p-6 shadow-soft">
+          <div aria-hidden className="absolute -top-10 -right-10 w-40 h-40 bg-white/30 blob-2" />
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-bold flex items-center gap-2"><span>🔁</span> Subscriptions</h3>
-                <p className="text-xs text-ink/60">Monthly recurring charges</p>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>✨</span> Disposable Income</h3>
+                <p className="text-xs text-ink/60">Freelance, gifts from family, side income</p>
               </div>
               <div className="text-right">
-                <div className="text-xs text-ink/60">Total</div>
-                <div className="text-xl font-extrabold">
-                  <AnimatedNumber value={total} prefix="₹" decimals={0} />
-                </div>
+                <div className="text-xs text-ink/60">Extra this month</div>
+                <div className="text-xl font-extrabold"><AnimatedNumber value={total} prefix="₹" /></div>
               </div>
             </div>
 
             <LayoutGroup>
               <ul className="space-y-2 mb-4">
                 <AnimatePresence initial={false}>
-                  {subscriptions.map((s) => (
-                    <motion.li
-                      key={s.id}
-                      layout
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, x: 40, transition: { duration: 0.25 } }}
-                      transition={{ type: "spring", stiffness: 260, damping: 24 }}
-                      className="group flex items-center gap-3 bg-white/60 backdrop-blur rounded-2xl px-4 py-3 shadow-soft"
-                    >
-                      <div className="w-9 h-9 rounded-xl bg-white grid place-items-center text-lg shadow-soft">{s.emoji}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate">{s.name}</div>
-                      </div>
-                      <div className="font-bold tabular-nums">₹{fmt(s.amount, 0)}</div>
-                      <motion.button
-                        whileHover={{ scale: 1.1, rotate: 90 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => setSubscriptions(subscriptions.filter((x) => x.id !== s.id))}
-                        className="w-8 h-8 rounded-full bg-white/70 text-ink/60 hover:bg-ppink-200 hover:text-ink transition-colors grid place-items-center"
-                        aria-label={`Remove ${s.name}`}
-                      >
-                        ✕
-                      </motion.button>
-                    </motion.li>
+                  {items.map((it) => (
+                    <ListRow key={it.id} item={it}
+                      onRemove={() => setItems(items.filter(x => x.id !== it.id))}
+                      rightSlot={<div className="font-bold tabular-nums">+₹{fmt(it.amount, 0)}</div>} />
                   ))}
                 </AnimatePresence>
-                {subscriptions.length === 0 && (
-                  <li className="text-sm text-ink/50 italic text-center py-4">No subscriptions yet — add one below.</li>
+                {items.length === 0 && (
+                  <li className="text-sm text-ink/50 italic text-center py-4">No extra income logged this month.</li>
                 )}
               </ul>
             </LayoutGroup>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+              <input value={name} onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && add()}
-                placeholder="Subscription name"
-                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition"
-              />
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                placeholder="Source (e.g. Freelance logo, Mom)"
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pcoral-300 transition" />
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && add()}
                 placeholder="₹ amount"
-                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition"
-              />
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={add}
-                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft"
-              >
+                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pcoral-300 transition" />
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft">
                 + Add
               </motion.button>
             </div>
@@ -516,59 +404,462 @@
     }
 
     // ——————————————————————————————————————————————————————————————
-    //  Savings Goals
+    //  Fixed Expenses (dynamic 2-col grid with add button)
+    // ——————————————————————————————————————————————————————————————
+    const EXPENSE_COLORS = [
+      { key: "pyellow", grad: "from-pyellow-100 to-pyellow-200", accent: "bg-pyellow-300/30", ring: "focus:ring-pyellow-300" },
+      { key: "pmint",   grad: "from-pmint-100 to-pmint-200",     accent: "bg-pmint-300/30",   ring: "focus:ring-pmint-300" },
+      { key: "pblue",   grad: "from-pblue-100 to-pblue-200",     accent: "bg-pblue-300/30",   ring: "focus:ring-pblue-300" },
+      { key: "ppink",   grad: "from-ppink-100 to-ppink-200",     accent: "bg-ppink-300/30",   ring: "focus:ring-ppink-300" },
+      { key: "psky",    grad: "from-psky-100 to-psky-200",       accent: "bg-psky-300/30",    ring: "focus:ring-psky-300" },
+      { key: "prose",   grad: "from-prose-100 to-prose-200",     accent: "bg-prose-300/30",   ring: "focus:ring-prose-300" },
+      { key: "pcoral",  grad: "from-pcoral-100 to-pcoral-200",   accent: "bg-pcoral-300/30",  ring: "focus:ring-pcoral-300" },
+      { key: "plilac",  grad: "from-plilac-100 to-plilac-200",   accent: "bg-plilac-300/30",  ring: "focus:ring-plilac-300" },
+    ];
+    const colorFor = (key) => EXPENSE_COLORS.find((c) => c.key === key) || EXPENSE_COLORS[0];
+    const EXPENSE_EMOJI_POOL = ["💰","📦","🧾","🧼","☕","🚗","🚇","📱","🎒","🏋️","🧴","🥘","🪴"];
+
+    function FixedExpensesCard({ items, setItems, total }) {
+      const [adding, setAdding] = useState(false);
+      const [name, setName] = useState("");
+      const [emoji, setEmoji] = useState("💰");
+      const [amount, setAmount] = useState("");
+
+      function update(id, patch) {
+        setItems(items.map(it => it.id === id ? { ...it, ...patch } : it));
+      }
+      function remove(id) { setItems(items.filter(it => it.id !== id)); }
+      function add() {
+        if (!name.trim()) return;
+        const color = EXPENSE_COLORS[items.length % EXPENSE_COLORS.length].key;
+        setItems([...items, { id: Date.now(), name: name.trim(), emoji, amount: amount ? parseFloat(amount) : 0, color }]);
+        setName(""); setAmount(""); setEmoji("💰"); setAdding(false);
+      }
+      return (
+        <section>
+          <div className="flex items-baseline justify-between mb-4 px-1 gap-3 flex-wrap">
+            <div className="flex items-baseline gap-3">
+              <h2 className="text-lg font-bold flex items-center gap-2"><span>📌</span> Fixed Expenses</h2>
+              <span className="text-xs text-inkmute">Your monthly commitments</span>
+            </div>
+            <div className="text-sm font-bold">Total: ₹<AnimatedNumber value={total} /></div>
+          </div>
+          <LayoutGroup>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AnimatePresence initial={false}>
+                {items.map((e, i) => {
+                  const c = colorFor(e.color);
+                  return (
+                    <motion.div key={e.id} layout
+                      initial={{ opacity: 0, y: 20, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
+                      transition={{ delay: 0.06 * Math.min(i, 6), duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+                      whileHover={{ y: -4, scale: 1.01, transition: { type: "spring", stiffness: 300, damping: 20 } }}
+                      className={`group relative overflow-hidden rounded-3xl p-5 shadow-soft bg-gradient-to-br ${c.grad}`}>
+                      <div aria-hidden className={`absolute -top-6 -right-6 w-24 h-24 ${c.accent} blob-1`} />
+                      <motion.button data-export-ignore="true"
+                        whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }}
+                        onClick={() => remove(e.id)}
+                        className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/70 text-ink/60 hover:bg-white hover:text-ink transition-colors grid place-items-center opacity-0 group-hover:opacity-100 z-10">
+                        ✕
+                      </motion.button>
+                      <div className="relative flex items-start gap-3">
+                        <input value={e.emoji} onChange={(ev) => update(e.id, { emoji: ev.target.value })}
+                          maxLength="2"
+                          className="w-11 h-11 rounded-2xl bg-white/60 grid place-items-center text-xl shrink-0 shadow-soft text-center" />
+                        <div className="flex-1 min-w-0">
+                          <input value={e.name} onChange={(ev) => update(e.id, { name: ev.target.value })}
+                            className={`text-sm font-semibold text-ink/85 bg-transparent w-full focus:bg-white/60 rounded-lg px-1 -mx-1 transition ${c.ring} focus:ring-2`} />
+                          <div className="mt-1">
+                            <MoneyInput value={e.amount} onChange={(v) => update(e.id, { amount: v })} size="lg" />
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+
+              {adding ? (
+                <motion.div layout data-export-ignore="true"
+                  initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+                  className="rounded-3xl p-5 shadow-soft bg-white/70 backdrop-blur border-2 border-dashed border-ink/15">
+                  <div className="flex items-center gap-2 mb-3">
+                    <input value={emoji} onChange={(ev) => setEmoji(ev.target.value)} maxLength="2"
+                      className="w-11 h-11 rounded-2xl bg-white grid place-items-center text-xl shrink-0 shadow-soft text-center" />
+                    <input value={name} onChange={(ev) => setName(ev.target.value)}
+                      onKeyDown={(ev) => ev.key === "Enter" && add()}
+                      placeholder="Name (e.g. Gym, Internet)"
+                      className="flex-1 rounded-2xl bg-white px-4 py-2.5 text-sm font-medium shadow-soft focus:ring-2 focus:ring-ink/20 transition" />
+                  </div>
+                  <input type="number" value={amount} onChange={(ev) => setAmount(ev.target.value)}
+                    onKeyDown={(ev) => ev.key === "Enter" && add()}
+                    placeholder="₹ amount"
+                    className="w-full rounded-2xl bg-white px-4 py-2.5 text-sm font-medium shadow-soft focus:ring-2 focus:ring-ink/20 transition mb-3" />
+                  <div className="flex gap-2">
+                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={add}
+                      className="flex-1 rounded-2xl bg-ink text-cream font-semibold px-4 py-2 text-sm shadow-soft">
+                      Add
+                    </motion.button>
+                    <button onClick={() => { setAdding(false); setName(""); setAmount(""); }}
+                      className="rounded-2xl bg-cream text-ink/70 font-medium px-4 py-2 text-sm hover:bg-creamdeep transition">
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.button data-export-ignore="true" layout
+                  whileHover={{ y: -4, scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    const randomEmoji = EXPENSE_EMOJI_POOL[Math.floor(Math.random() * EXPENSE_EMOJI_POOL.length)];
+                    setEmoji(randomEmoji); setAdding(true);
+                  }}
+                  className="rounded-3xl p-5 shadow-soft bg-white/60 backdrop-blur border-2 border-dashed border-ink/20 text-ink/60 hover:text-ink hover:border-ink/40 transition-colors min-h-[108px] grid place-items-center">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="text-2xl">➕</div>
+                    <div className="text-sm font-semibold">Add fixed expense</div>
+                  </div>
+                </motion.button>
+              )}
+            </div>
+          </LayoutGroup>
+        </section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Subscriptions
+    // ——————————————————————————————————————————————————————————————
+    const SUB_EMOJIS = ["⭐","🎬","🎵","☁️","📚","🎮","📰","🧘","🏋️","🍜","🛒","🎙️","📺"];
+    function SubscriptionsCard({ subscriptions, setSubscriptions, total }) {
+      const [name, setName] = useState("");
+      const [amount, setAmount] = useState("");
+      function add() {
+        if (!name.trim() || !amount) return;
+        setSubscriptions([...subscriptions, {
+          id: Date.now(), name: name.trim(), amount: parseFloat(amount),
+          emoji: SUB_EMOJIS[Math.floor(Math.random() * SUB_EMOJIS.length)]
+        }]);
+        setName(""); setAmount("");
+      }
+      return (
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-plilac-100 to-plilac-200 p-6 shadow-soft">
+          <div aria-hidden className="absolute -top-10 -right-10 w-44 h-44 bg-white/30 blob-3" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>🔁</span> Subscriptions</h3>
+                <p className="text-xs text-ink/60">Monthly recurring charges</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-ink/60">Total</div>
+                <div className="text-xl font-extrabold"><AnimatedNumber value={total} prefix="₹" /></div>
+              </div>
+            </div>
+            <LayoutGroup>
+              <ul className="space-y-2 mb-4">
+                <AnimatePresence initial={false}>
+                  {subscriptions.map((s) => (
+                    <ListRow key={s.id} item={s}
+                      onRemove={() => setSubscriptions(subscriptions.filter(x => x.id !== s.id))}
+                      rightSlot={<div className="font-bold tabular-nums">₹{fmt(s.amount, 0)}</div>} />
+                  ))}
+                </AnimatePresence>
+                {subscriptions.length === 0 && <li className="text-sm text-ink/50 italic text-center py-4">No subscriptions yet.</li>}
+              </ul>
+            </LayoutGroup>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()} placeholder="Subscription name"
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition" />
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()} placeholder="₹ amount"
+                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition" />
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft">+ Add</motion.button>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Zoey (dog expenses)
+    // ——————————————————————————————————————————————————————————————
+    const ZOEY_EMOJIS = ["🐶","🦴","🥩","💊","🧼","✂️","🩺","🏥","🎾","🐾"];
+    function ZoeyCard({ items, setItems, total }) {
+      const [name, setName] = useState("");
+      const [amount, setAmount] = useState("");
+      function add() {
+        if (!name.trim() || !amount) return;
+        setItems([...items, {
+          id: Date.now(), name: name.trim(), amount: parseFloat(amount),
+          emoji: ZOEY_EMOJIS[Math.floor(Math.random() * ZOEY_EMOJIS.length)]
+        }]);
+        setName(""); setAmount("");
+      }
+      return (
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-ptan-100 to-ptan-200 p-6 shadow-soft">
+          <div aria-hidden className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/30 blob-1" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>🐶</span> Zoey</h3>
+                <p className="text-xs text-ink/60">Vet, food, grooming, toys — all things Zoey</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-ink/60">This month</div>
+                <div className="text-xl font-extrabold"><AnimatedNumber value={total} prefix="₹" /></div>
+              </div>
+            </div>
+            <LayoutGroup>
+              <ul className="space-y-2 mb-4">
+                <AnimatePresence initial={false}>
+                  {items.map((it) => (
+                    <ListRow key={it.id} item={it}
+                      onRemove={() => setItems(items.filter(x => x.id !== it.id))}
+                      rightSlot={<div className="font-bold tabular-nums">₹{fmt(it.amount, 0)}</div>} />
+                  ))}
+                </AnimatePresence>
+                {items.length === 0 && <li className="text-sm text-ink/50 italic text-center py-4">Nothing logged for Zoey yet 🐾</li>}
+              </ul>
+            </LayoutGroup>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()}
+                placeholder="Expense (e.g. Vet visit, Kibble)"
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-ptan-300 transition" />
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()} placeholder="₹ amount"
+                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-ptan-300 transition" />
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft">+ Add</motion.button>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Treat Myself (budget + spent)
+    // ——————————————————————————————————————————————————————————————
+    const TREAT_EMOJIS = ["🎁","💖","🧁","☕","🍰","🌸","🎀","🛍️","💅","🍫","📖","🎧"];
+    function TreatMyselfCard({ budget, setBudget, spent, setSpent, spentTotal }) {
+      const [name, setName] = useState("");
+      const [amount, setAmount] = useState("");
+      function add() {
+        if (!name.trim() || !amount) return;
+        setSpent([...spent, {
+          id: Date.now(), name: name.trim(), amount: parseFloat(amount),
+          emoji: TREAT_EMOJIS[Math.floor(Math.random() * TREAT_EMOJIS.length)]
+        }]);
+        setName(""); setAmount("");
+      }
+      const budgetNum = num(budget);
+      const pct = budgetNum > 0 ? Math.min(100, (spentTotal / budgetNum) * 100) : 0;
+      const remaining = budgetNum - spentTotal;
+      const overBudget = budgetNum > 0 && spentTotal > budgetNum;
+      return (
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.24, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-prose-100 to-prose-200 p-6 shadow-soft">
+          <div aria-hidden className="absolute -top-12 -right-12 w-48 h-48 bg-white/30 blob-3" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>💖</span> Treat Myself</h3>
+                <p className="text-xs text-ink/60">Monthly fun money — gifts, indulgences, little joys</p>
+              </div>
+              <div className="bg-white/60 rounded-2xl px-3 py-2 flex items-center gap-2">
+                <span className="text-xs text-ink/60 font-semibold">Monthly budget</span>
+                <div className="flex items-baseline">
+                  <span className="text-sm font-bold text-ink/60">₹</span>
+                  <input type="number" value={budget} onChange={(e) => setBudget(e.target.value)}
+                    placeholder="0" className="w-20 bg-transparent text-sm font-bold focus:ring-2 focus:ring-prose-300 rounded" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/60 rounded-2xl p-4 mb-4">
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="text-sm font-semibold">Spent <span className="text-base">₹{fmt(spentTotal)}</span> of ₹{fmt(budgetNum)}</div>
+                <div className={`text-xs font-bold ${overBudget ? "text-red-600" : remaining <= budgetNum * 0.2 ? "text-ink/70" : "text-ink/60"}`}>
+                  {overBudget ? `Over by ₹${fmt(spentTotal - budgetNum)}` : `₹${fmt(remaining)} left`}
+                </div>
+              </div>
+              <div className="h-3 rounded-full bg-white/80 overflow-hidden">
+                <motion.div initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, pct)}%`,
+                    background: overBudget ? "linear-gradient(to right, #FFA7BF, #E68FA4)" : "linear-gradient(to right, #F4B5C3, #E68FA4)" }}
+                  transition={{ type: "spring", stiffness: 80, damping: 18 }}
+                  className="h-full rounded-full" />
+              </div>
+            </div>
+
+            <LayoutGroup>
+              <ul className="space-y-2 mb-4">
+                <AnimatePresence initial={false}>
+                  {spent.map((it) => (
+                    <ListRow key={it.id} item={it}
+                      onRemove={() => setSpent(spent.filter(x => x.id !== it.id))}
+                      rightSlot={<div className="font-bold tabular-nums">₹{fmt(it.amount, 0)}</div>} />
+                  ))}
+                </AnimatePresence>
+                {spent.length === 0 && <li className="text-sm text-ink/50 italic text-center py-4">No treats yet — go easy, or don't 😉</li>}
+              </ul>
+            </LayoutGroup>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()}
+                placeholder="Treat (e.g. New earrings, brunch)"
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-prose-300 transition" />
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()} placeholder="₹ amount"
+                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-prose-300 transition" />
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft">+ Add</motion.button>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Investments (MF + Stocks)
+    // ——————————————————————————————————————————————————————————————
+    function InvestmentsCard({ items, setItems, total }) {
+      const [name, setName] = useState("");
+      const [amount, setAmount] = useState("");
+      const [type, setType] = useState("MF");
+      function add() {
+        if (!name.trim() || !amount) return;
+        setItems([...items, {
+          id: Date.now(), name: name.trim(), amount: parseFloat(amount), type,
+          emoji: type === "MF" ? "📈" : "💹"
+        }]);
+        setName(""); setAmount("");
+      }
+      const mfTotal = items.filter(i => i.type === "MF").reduce((a, i) => a + num(i.amount), 0);
+      const stTotal = items.filter(i => i.type === "Stock").reduce((a, i) => a + num(i.amount), 0);
+      return (
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.26, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-psky-100 to-psky-200 p-6 shadow-soft">
+          <div aria-hidden className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/30 blob-2" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>📈</span> Investments</h3>
+                <p className="text-xs text-ink/60">Mutual funds & stocks — money working for you</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-ink/60">Monthly total</div>
+                <div className="text-xl font-extrabold"><AnimatedNumber value={total} prefix="₹" /></div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="bg-white/60 rounded-2xl px-3 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold flex items-center gap-1">📈 Mutual Funds</div>
+                <div className="text-base font-extrabold">₹<AnimatedNumber value={mfTotal} /></div>
+              </div>
+              <div className="bg-white/60 rounded-2xl px-3 py-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold flex items-center gap-1">💹 Stocks</div>
+                <div className="text-base font-extrabold">₹<AnimatedNumber value={stTotal} /></div>
+              </div>
+            </div>
+
+            <LayoutGroup>
+              <ul className="space-y-2 mb-4">
+                <AnimatePresence initial={false}>
+                  {items.map((it) => (
+                    <ListRow key={it.id} item={it}
+                      onRemove={() => setItems(items.filter(x => x.id !== it.id))}
+                      badge={<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${it.type === "MF" ? "bg-pmint-200 text-ink" : "bg-psky-300/40 text-ink"}`}>{it.type}</span>}
+                      rightSlot={<div className="font-bold tabular-nums">₹{fmt(it.amount, 0)}</div>} />
+                  ))}
+                </AnimatePresence>
+                {items.length === 0 && <li className="text-sm text-ink/50 italic text-center py-4">No investments logged yet.</li>}
+              </ul>
+            </LayoutGroup>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex rounded-2xl bg-white/80 p-1 shadow-soft">
+                {["MF", "Stock"].map((t) => (
+                  <button key={t} onClick={() => setType(t)}
+                    className={`px-3 py-2 text-xs font-bold rounded-xl transition ${type === t ? "bg-ink text-cream" : "text-ink/60 hover:text-ink"}`}>
+                    {t === "MF" ? "📈 MF" : "💹 Stock"}
+                  </button>
+                ))}
+              </div>
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()}
+                placeholder={type === "MF" ? "Fund name (e.g. Parag Parikh Flexi)" : "Stock ticker (e.g. RELIANCE)"}
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-psky-300 transition" />
+              <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()} placeholder="₹ / month"
+                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-psky-300 transition" />
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft">+ Add</motion.button>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Savings Goals (with weekly + monthly pace)
     // ——————————————————————————————————————————————————————————————
     const GOAL_EMOJIS = ["🎯","🏝️","🏡","🚗","💍","🎓","🛟","🎸","📷","🗾"];
-
     function GoalsCard({ goals, setGoals }) {
       const [name, setName] = useState("");
       const [target, setTarget] = useState("");
+      const [months, setMonths] = useState("12");
       function add() {
         if (!name.trim() || !target) return;
         setGoals([...goals, {
-          id: Date.now(),
-          name: name.trim(),
-          target: parseFloat(target),
-          saved: 0,
+          id: Date.now(), name: name.trim(),
+          target: parseFloat(target), saved: 0,
+          months: parseInt(months) || 12,
           emoji: GOAL_EMOJIS[Math.floor(Math.random() * GOAL_EMOJIS.length)]
         }]);
-        setName(""); setTarget("");
+        setName(""); setTarget(""); setMonths("12");
       }
       function update(id, field, value) {
-        setGoals(goals.map(g => g.id === id ? { ...g, [field]: parseFloat(value) || 0 } : g));
+        setGoals(goals.map(g => g.id === id ? { ...g, [field]: field === "months" ? (parseInt(value) || 1) : (parseFloat(value) || 0) } : g));
       }
       return (
-        <motion.section
-          layout
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28, duration: 0.55 }}
-          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-pgreen-100 to-pgreen-200 p-6 shadow-soft"
-        >
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-pgreen-100 to-pgreen-200 p-6 shadow-soft">
           <div aria-hidden className="absolute -bottom-10 -left-10 w-44 h-44 bg-white/30 blob-2" />
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-bold flex items-center gap-2"><span>🏆</span> Savings Goals</h3>
-                <p className="text-xs text-ink/60">Progress toward what matters</p>
+                <p className="text-xs text-ink/60">With weekly and monthly pace targets</p>
               </div>
             </div>
-
             <LayoutGroup>
               <div className="space-y-3 mb-4">
                 <AnimatePresence initial={false}>
                   {goals.map((g) => {
                     const pct = g.target > 0 ? Math.min(100, (g.saved / g.target) * 100) : 0;
+                    const remainingToSave = Math.max(0, g.target - g.saved);
+                    const monthsLeft = Math.max(1, g.months || 12);
+                    const perMonth = remainingToSave / monthsLeft;
+                    const perWeek = perMonth / 4.33;
                     return (
-                      <motion.div
-                        key={g.id}
-                        layout
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                      <motion.div key={g.id} layout
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, x: 40, transition: { duration: 0.25 } }}
                         transition={{ type: "spring", stiffness: 260, damping: 24 }}
-                        className="bg-white/70 backdrop-blur rounded-2xl p-4 shadow-soft"
-                      >
+                        className="bg-white/70 backdrop-blur rounded-2xl p-4 shadow-soft">
                         <div className="flex items-center gap-3 mb-2">
                           <div className="w-10 h-10 rounded-xl bg-white grid place-items-center text-lg shadow-soft">{g.emoji}</div>
                           <div className="flex-1 min-w-0">
@@ -581,70 +872,65 @@
                               <span className="font-semibold">{Math.round(pct)}%</span>
                             </div>
                           </div>
-                          <motion.button
-                            whileHover={{ scale: 1.1, rotate: 90 }}
-                            whileTap={{ scale: 0.9 }}
+                          <motion.button whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }}
                             onClick={() => setGoals(goals.filter(x => x.id !== g.id))}
                             className="w-8 h-8 rounded-full bg-white text-ink/60 hover:bg-ppink-200 hover:text-ink transition-colors grid place-items-center"
-                            aria-label={`Remove ${g.name}`}
-                          >
-                            ✕
-                          </motion.button>
+                            aria-label={`Remove ${g.name}`}>✕</motion.button>
                         </div>
 
-                        <div className="h-3 rounded-full bg-white/70 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
+                        <div className="h-3 rounded-full bg-white/70 overflow-hidden mb-3">
+                          <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
                             transition={{ type: "spring", stiffness: 80, damping: 18 }}
-                            className="h-full rounded-full bg-gradient-to-r from-pgreen-300 to-pmint-300 shadow-inset"
-                          />
+                            className="h-full rounded-full bg-gradient-to-r from-pgreen-300 to-pmint-300" />
                         </div>
 
-                        <div className="flex items-center gap-2 mt-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                          <div className="bg-pgreen-100 rounded-xl px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Per week</div>
+                            <div className="text-sm font-extrabold">₹{fmt(perWeek, 0)}</div>
+                          </div>
+                          <div className="bg-pmint-100 rounded-xl px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Per month</div>
+                            <div className="text-sm font-extrabold">₹{fmt(perMonth, 0)}</div>
+                          </div>
+                          <div className="bg-white rounded-xl px-3 py-2 col-span-2 sm:col-span-1">
+                            <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Timeline</div>
+                            <div className="flex items-baseline gap-1">
+                              <input type="number" value={g.months || 12}
+                                onChange={(e) => update(g.id, "months", e.target.value)}
+                                className="w-12 text-sm font-extrabold bg-transparent focus:ring-2 focus:ring-pgreen-300 rounded" />
+                              <span className="text-xs text-ink/60">months</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
                           <label className="text-xs text-ink/60">Saved so far</label>
-                          <input
-                            type="number"
-                            value={g.saved}
+                          <input type="number" value={g.saved}
                             onChange={(e) => update(g.id, "saved", e.target.value)}
-                            className="w-28 rounded-xl bg-white px-3 py-1.5 text-sm font-semibold shadow-soft focus:ring-2 focus:ring-pgreen-300 transition"
-                          />
+                            className="w-28 rounded-xl bg-white px-3 py-1.5 text-sm font-semibold shadow-soft focus:ring-2 focus:ring-pgreen-300 transition" />
                           <span className="text-xs text-ink/60 ml-auto">Target ₹{fmt(g.target, 0)}</span>
                         </div>
                       </motion.div>
                     );
                   })}
                 </AnimatePresence>
-                {goals.length === 0 && (
-                  <div className="text-sm text-ink/50 italic text-center py-4">No goals yet — add something to save for.</div>
-                )}
+                {goals.length === 0 && <div className="text-sm text-ink/50 italic text-center py-4">No goals yet.</div>}
               </div>
             </LayoutGroup>
-
             <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+              <input value={name} onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && add()}
-                placeholder="Goal name (e.g. Trip to Japan)"
-                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pgreen-300 transition"
-              />
-              <input
-                type="number"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && add()}
-                placeholder="₹ target"
-                className="w-full sm:w-32 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pgreen-300 transition"
-              />
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={add}
-                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft"
-              >
-                + Add
-              </motion.button>
+                placeholder="Goal (e.g. Trip to Japan)"
+                className="flex-1 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pgreen-300 transition" />
+              <input type="number" value={target} onChange={(e) => setTarget(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()} placeholder="₹ target"
+                className="w-full sm:w-28 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pgreen-300 transition" />
+              <input type="number" value={months} onChange={(e) => setMonths(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && add()} placeholder="months"
+                className="w-full sm:w-24 rounded-2xl bg-white/80 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-pgreen-300 transition" />
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={add}
+                className="rounded-2xl bg-ink text-cream font-semibold px-5 py-3 text-sm shadow-soft">+ Add</motion.button>
             </div>
           </div>
         </motion.section>
@@ -652,20 +938,102 @@
     }
 
     // ——————————————————————————————————————————————————————————————
-    //  Summary card (sidebar)
+    //  Monthly Calendar Tracker
     // ——————————————————————————————————————————————————————————————
-    function SummaryCard({ income, totalExpenses, remaining, savingsRate }) {
+    function CalendarCard({ history, setHistory, currentSnapshot }) {
+      const entries = Object.entries(history || {}).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
+      const maxExpense = Math.max(1, ...Object.values(history || {}).map(v => v.expenses || 0));
+      const currentYM = new Date().toISOString().slice(0, 7);
+      const currentLabel = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+      function snapshot() {
+        setHistory({ ...(history || {}), [currentYM]: { ...currentSnapshot, savedAt: Date.now() } });
+      }
+      function remove(ym) {
+        const next = { ...(history || {}) };
+        delete next[ym];
+        setHistory(next);
+      }
+      const alreadySnapshotted = history && history[currentYM];
+      return (
+        <motion.section layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.55 }}
+          className="relative overflow-hidden rounded-4xl bg-white/80 backdrop-blur p-6 shadow-soft">
+          <div aria-hidden className="absolute -top-10 -right-10 w-44 h-44 bg-plilac-100 blob-1" />
+          <div aria-hidden className="absolute -bottom-8 -left-8 w-32 h-32 bg-pmint-100 blob-2" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2"><span>📅</span> Monthly Tracker</h3>
+                <p className="text-xs text-ink/60">Compare your spending month over month</p>
+              </div>
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={snapshot}
+                className="rounded-2xl bg-ink text-cream font-semibold px-4 py-2 text-xs shadow-soft">
+                📸 {alreadySnapshotted ? `Update ${currentLabel}` : `Snapshot ${currentLabel}`}
+              </motion.button>
+            </div>
+
+            {entries.length === 0 && (
+              <div className="text-sm text-ink/50 italic text-center py-8">
+                No snapshots yet — hit "Snapshot" to save this month's totals and start tracking.
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <LayoutGroup>
+                <AnimatePresence initial={false}>
+                  {entries.map(([ym, data]) => {
+                    const pct = (num(data.expenses) / maxExpense) * 100;
+                    const label = new Date(ym + "-01").toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+                    const isCurrent = ym === currentYM;
+                    return (
+                      <motion.div key={ym} layout
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: 40 }}
+                        className="flex items-center gap-3 group">
+                        <div className={`w-20 text-xs font-semibold shrink-0 flex items-center gap-1 ${isCurrent ? "text-ink" : "text-ink/70"}`}>
+                          {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-pgreen-300" />}
+                          {label}
+                        </div>
+                        <div className="flex-1 h-9 bg-cream rounded-full overflow-hidden relative">
+                          <motion.div initial={{ width: 0 }} animate={{ width: `${Math.max(8, pct)}%` }}
+                            transition={{ type: "spring", stiffness: 80, damping: 18 }}
+                            className="h-full bg-gradient-to-r from-ppink-200 to-prose-200 rounded-full flex items-center px-3 text-xs font-bold text-ink whitespace-nowrap">
+                            ₹{fmt(data.expenses)}
+                          </motion.div>
+                        </div>
+                        <div className="w-28 text-[10px] text-ink/60 text-right shrink-0 leading-tight">
+                          <div>In <span className="font-semibold text-ink">₹{fmt(data.income)}</span></div>
+                          <div className={num(data.savings) >= 0 ? "text-pgreen-300" : "text-red-600"}>
+                            Net {num(data.savings) >= 0 ? "+" : ""}₹{fmt(data.savings)}
+                          </div>
+                        </div>
+                        <motion.button whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }}
+                          onClick={() => remove(ym)}
+                          className="w-7 h-7 rounded-full bg-cream text-ink/50 hover:bg-ppink-200 hover:text-ink transition-colors grid place-items-center opacity-0 group-hover:opacity-100"
+                          aria-label="Remove snapshot">✕</motion.button>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </LayoutGroup>
+            </div>
+          </div>
+        </motion.section>
+      );
+    }
+
+    // ——————————————————————————————————————————————————————————————
+    //  Summary sidebar
+    // ——————————————————————————————————————————————————————————————
+    function SummaryCard({ totalIncome, totalExpenses, totalInvestments, remaining, savingsRate }) {
       const positive = remaining >= 0;
       const rateClamped = Math.max(-50, Math.min(100, savingsRate));
       const dashArray = 2 * Math.PI * 38;
       const dashOffset = dashArray - (dashArray * Math.max(0, Math.min(100, savingsRate))) / 100;
       return (
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.55 }}
-          className="relative overflow-hidden rounded-4xl bg-white/80 backdrop-blur p-6 shadow-pop"
-        >
+          className="relative overflow-hidden rounded-4xl bg-white/85 backdrop-blur p-6 shadow-pop">
           <div aria-hidden className="absolute -top-10 -right-10 w-36 h-36 bg-plilac-100 blob-1" />
           <div className="relative">
             <div className="flex items-start justify-between mb-4">
@@ -676,16 +1044,10 @@
               <div className="relative w-[92px] h-[92px] shrink-0">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88">
                   <circle cx="44" cy="44" r="38" stroke="#EBE2CE" strokeWidth="8" fill="none" />
-                  <motion.circle
-                    cx="44" cy="44" r="38"
-                    stroke={positive ? "#92D9A8" : "#FFA7BF"}
-                    strokeWidth="8"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray={dashArray}
-                    animate={{ strokeDashoffset: dashOffset }}
-                    transition={{ type: "spring", stiffness: 80, damping: 20 }}
-                  />
+                  <motion.circle cx="44" cy="44" r="38"
+                    stroke={positive ? "#92D9A8" : "#FFA7BF"} strokeWidth="8" fill="none" strokeLinecap="round"
+                    strokeDasharray={dashArray} animate={{ strokeDashoffset: dashOffset }}
+                    transition={{ type: "spring", stiffness: 80, damping: 20 }} />
                 </svg>
                 <div className="absolute inset-0 grid place-items-center text-center">
                   <div>
@@ -698,39 +1060,34 @@
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="bg-peach-100 rounded-2xl px-3 py-2.5">
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="bg-peach-100 rounded-2xl px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Income</div>
-                <div className="text-base font-extrabold"><AnimatedNumber value={num(income)} prefix="₹" /></div>
+                <div className="text-sm font-extrabold"><AnimatedNumber value={totalIncome} prefix="₹" /></div>
               </div>
-              <div className="bg-ppink-100 rounded-2xl px-3 py-2.5">
+              <div className="bg-ppink-100 rounded-2xl px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Expenses</div>
-                <div className="text-base font-extrabold"><AnimatedNumber value={totalExpenses} prefix="₹" /></div>
+                <div className="text-sm font-extrabold"><AnimatedNumber value={totalExpenses} prefix="₹" /></div>
+              </div>
+              <div className="bg-psky-100 rounded-2xl px-3 py-2 col-span-2">
+                <div className="text-[10px] uppercase tracking-wider text-ink/60 font-semibold">Investments</div>
+                <div className="text-sm font-extrabold"><AnimatedNumber value={totalInvestments} prefix="₹" /></div>
               </div>
             </div>
 
-            <motion.div
-              layout
-              animate={{
-                backgroundColor: positive ? "rgba(198, 236, 206, 0.9)" : "rgba(255, 200, 212, 0.9)",
-              }}
+            <motion.div layout
+              animate={{ backgroundColor: positive ? "rgba(198, 236, 206, 0.9)" : "rgba(255, 200, 212, 0.9)" }}
               transition={{ duration: 0.4 }}
-              className="rounded-2xl px-4 py-3 flex items-center justify-between"
-            >
+              className="rounded-2xl px-4 py-3 flex items-center justify-between mt-2">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-ink/70 font-semibold">Remaining</div>
+                <div className="text-[10px] uppercase tracking-wider text-ink/70 font-semibold">Cushion</div>
                 <div className={`text-2xl font-extrabold ${positive ? "text-ink" : "text-red-700"}`}>
                   <AnimatedNumber value={remaining} prefix={positive ? "₹" : "-₹"} decimals={0} />
                 </div>
               </div>
-              <motion.div
-                key={positive ? "good" : "bad"}
-                initial={{ scale: 0.6, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="text-3xl"
-              >
-                {positive ? "🌿" : "🚨"}
-              </motion.div>
+              <motion.div key={positive ? "good" : "bad"}
+                initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                className="text-3xl">{positive ? "🌿" : "🚨"}</motion.div>
             </motion.div>
           </div>
         </motion.section>
@@ -738,10 +1095,14 @@
     }
 
     // ——————————————————————————————————————————————————————————————
-    //  AI Advisor (rule-based, context-aware)
+    //  AI Advisor — context-aware, rule-based
     // ——————————————————————————————————————————————————————————————
     function generateAdvice(q, ctx) {
-      const { income, totalExpenses, totalFixed, totalSubs, remaining, savingsRate, expenses, subscriptions, goals } = ctx;
+      const {
+        totalIncome, totalExpenses, totalFixed, totalSubs, totalZoey, totalTreat, treatBudget, treatSpent,
+        totalInvestments, mfTotal, stTotal, totalDisposable, remaining, savingsRate,
+        subscriptions, goals, fixedExpenses, zoey, investments, disposable,
+      } = ctx;
       const s = q.toLowerCase();
 
       const numberMatch = s.match(/[₹$]?\s*([\d,]+(?:\.\d+)?)\s*(k|thousand|lakhs?|l|crores?|cr)?/i);
@@ -757,139 +1118,126 @@
       // 1. Affordability
       if (/\b(afford|buy|purchase|get|spend|should i|can i)\b/.test(s) && amount !== null) {
         if (remaining <= 0) {
-          return `Honest answer: right now you're running a ₹${fmt(Math.abs(remaining))} deficit each month — buying a ₹${fmt(amount)} thing would deepen the hole. Let's fix the monthly gap first. Want me to point at where to cut?`;
+          return `Honest answer: you're running a ₹${fmt(Math.abs(remaining))} deficit each month — buying a ₹${fmt(amount)} thing would deepen it. Fix the monthly gap first. Want me to point at where to cut?`;
         }
-        if (amount <= remaining * 0.5) {
-          return `Yes 💚 At ₹${fmt(amount)}, that's only ~${Math.round((amount / remaining) * 100)}% of your ₹${fmt(remaining)} cushion this month. Totally affordable. Just ask: does it move me closer to my goals, or sideways?`;
-        }
-        if (amount <= remaining) {
-          return `Technically yes — but it'd eat ${Math.round((amount / remaining) * 100)}% of your ₹${fmt(remaining)} remaining, leaving ₹${fmt(remaining - amount)} for anything unexpected. I'd sleep on it for 48 hours first.`;
-        }
+        if (amount <= remaining * 0.5) return `Yes 💚 At ₹${fmt(amount)}, that's only ~${Math.round((amount/remaining)*100)}% of your ₹${fmt(remaining)} cushion. Totally affordable — just check it moves you toward your goals.`;
+        if (amount <= remaining)        return `Technically yes — but it'd eat ${Math.round((amount/remaining)*100)}% of your ₹${fmt(remaining)} remaining, leaving ₹${fmt(remaining-amount)}. Sleep on it for 48 hours.`;
         const months = Math.ceil(amount / remaining);
-        return `Not this month. ₹${fmt(amount)} is ₹${fmt(amount - remaining)} more than your ₹${fmt(remaining)} cushion. At your current pace, you could save for it in about ${months} month${months > 1 ? "s" : ""} — or trim expenses to get there faster.`;
+        return `Not this month. ₹${fmt(amount)} is ₹${fmt(amount-remaining)} more than your ₹${fmt(remaining)} cushion. At your pace, save for ~${months} month${months>1?"s":""} — or trim expenses.`;
       }
 
-      // 2. Budget optimization / overspending
+      // 2. Budget optimization
       if (/\b(overspend|cut|reduce|trim|optimi[sz]e|save money|biggest|largest|expensive|where.*go|where.*spend)\b/.test(s)) {
-        const map = [
-          ["🏠 Rent & Credit Card", num(expenses.rent)],
-          ["⚡ Maintenance & Electricity", num(expenses.maintenance)],
-          ["🛋️ Rented Furniture", num(expenses.furniture)],
-          ["✈️ Travel", num(expenses.travel)],
+        const buckets = [
+          ...fixedExpenses.map(e => [`${e.emoji||"💰"} ${e.name}`, num(e.amount)]),
           ["🔁 Subscriptions", totalSubs],
-        ].sort((a, b) => b[1] - a[1]);
-        if (map[0][1] === 0) return "Add some expenses first and I'll point at the biggest opportunities to trim.";
-        const top = map[0], second = map[1];
-        return `Your biggest bucket is ${top[0]} at ₹${fmt(top[1])} — that's ${Math.round((top[1] / totalExpenses) * 100)}% of your total. A 10% trim there = ₹${fmt(top[1] * 0.1)} back in your pocket. Next up: ${second[0]} at ₹${fmt(second[1])}. Fun rule: cutting one big thing by 10% beats cutting ten small things by 1%.`;
+          ["🐶 Zoey", totalZoey],
+          ["💖 Treat Myself", num(treatBudget)],
+        ].filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
+        if (buckets.length === 0) return "Add some expenses first — then I'll point at the biggest opportunities to trim.";
+        const [top, second] = buckets;
+        const secondTxt = second ? ` Next up: ${second[0]} at ₹${fmt(second[1])}.` : "";
+        return `Your biggest bucket is ${top[0]} at ₹${fmt(top[1])} — ${Math.round((top[1]/totalExpenses)*100)}% of total expenses. A 10% trim = ₹${fmt(top[1]*0.1)} back.${secondTxt} Cutting one big thing by 10% beats ten small things by 1%.`;
       }
 
       // 3. Subscription audit
       if (/\bsubscription/.test(s)) {
-        if (subscriptions.length === 0) return "No subscriptions logged yet — add them and I'll help you audit.";
+        if (subscriptions.length === 0) return "No subscriptions logged yet.";
         const annual = totalSubs * 12;
-        const pct = income > 0 ? ((totalSubs / income) * 100).toFixed(1) : "—";
-        const sorted = [...subscriptions].sort((a, b) => b.amount - a.amount);
-        const biggest = sorted[0];
-        return `You have ${subscriptions.length} subscription${subscriptions.length > 1 ? "s" : ""} = ₹${fmt(totalSubs, 0)}/month = ₹${fmt(annual)}/year (${pct}% of income). The biggest is ${biggest.emoji} ${biggest.name} at ₹${fmt(biggest.amount, 0)}. The audit test: did you actually use each one in the last 30 days? If no → cancel. It's the easiest "raise" you can give yourself.`;
+        const pct = totalIncome > 0 ? ((totalSubs/totalIncome)*100).toFixed(1) : "—";
+        const biggest = [...subscriptions].sort((a,b) => b.amount-a.amount)[0];
+        return `${subscriptions.length} subscription${subscriptions.length>1?"s":""} = ₹${fmt(totalSubs)}/month = ₹${fmt(annual)}/year (${pct}% of income). Biggest: ${biggest.emoji} ${biggest.name} at ₹${fmt(biggest.amount)}. Audit: did you use each one this month? No → cancel.`;
       }
 
-      // 4. Savings strategy
-      if (/\b(save|saving|emergency|strategy|how.*save)\b/.test(s)) {
-        if (income === 0) return "Add your monthly income first and I'll build you a real savings plan.";
-        const target = income * 0.2;
-        const base = `Healthy target: 20% of income = ₹${fmt(target)}/month. You're at ${Math.round(savingsRate)}%.`;
-        if (savingsRate >= 25) return `${base} You're ahead of the curve 🌟. Make sure that money is actually going somewhere productive — a high-yield savings account, mutual fund SIPs, or your goal buckets — not just sitting idle.`;
-        if (savingsRate >= 15) return `${base} Solid. To push higher, try 'pay yourself first': the day salary lands, auto-transfer ₹${fmt(target)} to savings before anything else. You'll spend what's left and barely notice.`;
-        if (savingsRate >= 0)  return `${base} Room to grow. Start tiny: set up a SIP or auto-transfer of ₹${fmt(Math.max(500, remaining * 0.3))} the day income lands, before bills. Small + consistent beats ambitious + abandoned.`;
-        return `${base} You're spending more than you earn right now. Savings strategy starts with closing that gap — want me to point at your biggest expense?`;
+      // 4. Zoey
+      if (/\b(zoey|dog|pet)\b/.test(s)) {
+        if (zoey.length === 0) return "Nothing logged for Zoey yet 🐾";
+        const biggest = [...zoey].sort((a,b) => b.amount-a.amount)[0];
+        return `Zoey costs ₹${fmt(totalZoey)} this month across ${zoey.length} item${zoey.length>1?"s":""} — about ${totalIncome>0 ? ((totalZoey/totalIncome)*100).toFixed(1) : "—"}% of income. Biggest: ${biggest.emoji} ${biggest.name} at ₹${fmt(biggest.amount)}. Pet expenses are lumpy (vet bills!) — consider a small monthly Zoey emergency buffer.`;
       }
 
-      // 5. Goals progress
-      if (/\b(goal|target|progress)\b/.test(s)) {
-        if (goals.length === 0) return "No goals yet — add one in the Savings Goals section and I can pace it for you.";
-        const totalTarget = goals.reduce((a, g) => a + g.target, 0);
-        const totalSaved = goals.reduce((a, g) => a + g.saved, 0);
-        const overallPct = Math.round((totalSaved / Math.max(1, totalTarget)) * 100);
-        const eta = remaining > 0 ? Math.ceil((totalTarget - totalSaved) / remaining) : null;
-        const lead = `You're ${overallPct}% toward your combined ₹${fmt(totalTarget)} targets (₹${fmt(totalSaved)} saved).`;
-        if (eta && eta > 0) return `${lead} At ₹${fmt(remaining)}/month remaining, you'd clear all of them in ~${eta} month${eta > 1 ? "s" : ""}. Tip: funnel any expense cuts directly into your biggest-emotion goal to keep momentum.`;
-        return `${lead} Your cushion is zero or negative this month though — trim something before funding goals, otherwise you're just shuffling money around.`;
+      // 5. Treat Myself
+      if (/\b(treat|gift|fun money|indulg|splurge)\b/.test(s)) {
+        const bNum = num(treatBudget);
+        if (bNum === 0) return "Set a Treat Myself budget so you can spoil yourself guilt-free within limits 💖";
+        const spent = totalTreat;
+        const left = bNum - spent;
+        if (left < 0) return `You're ₹${fmt(Math.abs(left))} over your ₹${fmt(bNum)} treat budget this month. No shame — but maybe pause before the next one.`;
+        if (left < bNum * 0.2) return `You've used ${Math.round((spent/bNum)*100)}% of your ₹${fmt(bNum)} treat budget. ₹${fmt(left)} left — spend it with intention 💖`;
+        return `₹${fmt(left)} left in your ₹${fmt(bNum)} treat budget (${Math.round((spent/bNum)*100)}% used). Go get yourself something nice.`;
       }
 
-      // 6. Overall check-in
+      // 6. Investments
+      if (/\b(invest|mutual fund|\bmf\b|stock|sip|wealth|portfolio)\b/.test(s)) {
+        if (investments.length === 0) return "No investments logged yet. Even ₹500/month in an index fund compounds — start with one SIP.";
+        const annual = totalInvestments * 12;
+        const rate = totalIncome > 0 ? ((totalInvestments/totalIncome)*100).toFixed(1) : "—";
+        return `Putting ₹${fmt(totalInvestments)}/month away — ₹${fmt(mfTotal)} in MF, ₹${fmt(stTotal)} in stocks. That's ₹${fmt(annual)}/year = ${rate}% of income. Rule of thumb: 10–15% in equity is solid if you have an emergency fund first.`;
+      }
+
+      // 7. Disposable / extra income
+      if (/\b(disposable|freelance|extra|side|family|gift income)\b/.test(s)) {
+        if (disposable.length === 0) return "No extra income logged this month. Salary alone is fine — but windfalls go to goals 💪";
+        return `You've got ₹${fmt(totalDisposable)} extra this month on top of salary. The discipline move: send at least 50% of windfalls straight to goals or investments, so lifestyle doesn't quietly absorb it.`;
+      }
+
+      // 8. Goals + weekly/monthly pace
+      if (/\b(goal|target|progress|pace|week|month)\b/.test(s)) {
+        if (goals.length === 0) return "No goals yet — add one with a timeline and I'll tell you exactly how much to save per week.";
+        const perMonthTotal = goals.reduce((a,g) => a + Math.max(0, g.target - g.saved) / Math.max(1, g.months || 12), 0);
+        const perWeekTotal = perMonthTotal / 4.33;
+        return `To hit all ${goals.length} goal${goals.length>1?"s":""} on time: save ₹${fmt(perMonthTotal)}/month or ₹${fmt(perWeekTotal)}/week combined. Your current cushion is ₹${fmt(remaining)}/month — ${remaining >= perMonthTotal ? "you're ahead of pace 🚀" : `you're ₹${fmt(perMonthTotal - remaining)}/month short — stretch deadlines or trim expenses.`}`;
+      }
+
+      // 9. Overall
       if (/\b(how.*doing|health|status|summary|overview|check[- ]?in)\b/.test(s)) {
-        if (income === 0) return "Enter your income and I'll give you an honest read on your financial health.";
-        if (remaining < 0)    return `You're ₹${fmt(Math.abs(remaining))} in the red this month. That's the one thing to fix — a negative cushion compounds into debt or missed goals. Let's find a 10–15% trim in your biggest bucket.`;
-        if (savingsRate >= 30) return `Financially? Thriving. ${Math.round(savingsRate)}% savings rate is top-decile. Main risk is lifestyle creep — lock it in with automated SIPs or transfers 🔒.`;
-        if (savingsRate >= 15) return `Healthy. ${Math.round(savingsRate)}% savings rate, ₹${fmt(remaining)} cushion. One nudge: name every rupee — assign the cushion to a goal so it doesn't quietly drift into spending.`;
-        return `Okay but tight. ${Math.round(savingsRate)}% savings rate is below the 20% benchmark. Your cushion (₹${fmt(remaining)}) is fragile — one surprise expense wipes it. Protect it by paying savings first.`;
+        if (totalIncome === 0) return "Enter your income first and I'll give you an honest read.";
+        if (remaining < 0) return `You're ₹${fmt(Math.abs(remaining))} in the red. Fix this first — a negative cushion compounds into debt.`;
+        if (savingsRate >= 30) return `Thriving. ${Math.round(savingsRate)}% of income not consumed — top-decile. Risk: lifestyle creep. Lock it in with automated SIPs.`;
+        if (savingsRate >= 15) return `Healthy. ${Math.round(savingsRate)}% save rate, ₹${fmt(remaining)} cushion, ₹${fmt(totalInvestments)}/mo investments. Nudge: name every rupee.`;
+        return `Tight. ${Math.round(savingsRate)}% save rate is below the 20% benchmark. Cushion (₹${fmt(remaining)}) is fragile. Pay savings first.`;
       }
 
-      // 7. Default help
-      return `Ask me things like:\n• "Can I afford a ₹50,000 laptop?"\n• "Where am I overspending?"\n• "How are my subscriptions?"\n• "How can I save more?"\n• "How am I doing overall?"`;
-    }
-
-    function TypingDots() {
-      return (
-        <div className="flex items-center gap-0.5">
-          <span className="dot" /><span className="dot" /><span className="dot" />
-        </div>
-      );
+      return `Ask me things like:\n• "Can I afford a ₹50,000 laptop?"\n• "Where am I overspending?"\n• "How much should I save per week for my goals?"\n• "How are my subscriptions?"\n• "How much am I spending on Zoey?"\n• "How's my treat budget?"\n• "How are my investments?"\n• "How am I doing overall?"`;
     }
 
     function AIChatCard({ ctx }) {
       const [messages, setMessages] = useState([
-        { id: 0, role: "ai", text: "Hey 👋 I'm Mate, your money buddy. Ask me about affordability, savings, subscriptions, or just \"how am I doing?\"" },
+        { id: 0, role: "ai", text: "Hey 👋 I'm Mate, your money buddy. I can see your full picture — income, fixed expenses, Zoey, treats, investments, goals, monthly history. Ask me anything." },
       ]);
       const [input, setInput] = useState("");
       const [isTyping, setIsTyping] = useState(false);
       const scrollRef = useRef(null);
-      useEffect(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-      }, [messages, isTyping]);
+      useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, isTyping]);
 
       function send(e) {
         e?.preventDefault();
         const text = input.trim();
         if (!text || isTyping) return;
-        const userMsg = { id: Date.now(), role: "user", text };
-        setMessages((m) => [...m, userMsg]);
-        setInput("");
-        setIsTyping(true);
+        setMessages(m => [...m, { id: Date.now(), role: "user", text }]);
+        setInput(""); setIsTyping(true);
         const delay = 600 + Math.random() * 600;
         setTimeout(() => {
-          const reply = { id: Date.now() + 1, role: "ai", text: generateAdvice(text, ctx) };
-          setMessages((m) => [...m, reply]);
+          setMessages(m => [...m, { id: Date.now()+1, role: "ai", text: generateAdvice(text, ctx) }]);
           setIsTyping(false);
         }, delay);
       }
-
       const suggestions = [
-        "Can I afford a ₹50,000 laptop?",
-        "Where am I overspending?",
-        "How are my subscriptions?",
         "How am I doing?",
+        "Per-week goal pace?",
+        "Where am I overspending?",
+        "How are my investments?",
       ];
-
       return (
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.18, duration: 0.55 }}
           data-export-ignore="true"
-          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-plilac-100 to-plilac-200 shadow-pop flex flex-col min-h-0 flex-1"
-        >
+          className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-plilac-100 to-plilac-200 shadow-pop flex flex-col min-h-0 flex-1">
           <div aria-hidden className="absolute -bottom-12 -right-10 w-40 h-40 bg-white/30 blob-3 pointer-events-none" />
-
-          {/* Header */}
           <div className="relative px-5 pt-5 pb-3 flex items-center gap-3">
-            <motion.div
-              animate={{ scale: [1, 1.08, 1] }}
+            <motion.div animate={{ scale: [1, 1.08, 1] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              className="w-10 h-10 rounded-2xl bg-white/80 grid place-items-center text-lg shadow-soft"
-            >
-              💜
-            </motion.div>
+              className="w-10 h-10 rounded-2xl bg-white/80 grid place-items-center text-lg shadow-soft">💜</motion.div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm">Mate · AI Advisor</div>
               <div className="text-[11px] text-ink/60 flex items-center gap-1">
@@ -897,80 +1245,44 @@
               </div>
             </div>
           </div>
-
-          {/* Messages */}
-          <div
-            ref={scrollRef}
-            className="relative flex-1 min-h-[260px] max-h-[520px] lg:max-h-none overflow-y-auto thin-scroll px-4 py-2 space-y-2"
-          >
+          <div ref={scrollRef} className="relative flex-1 min-h-[260px] max-h-[520px] lg:max-h-none overflow-y-auto thin-scroll px-4 py-2 space-y-2">
             <AnimatePresence initial={false}>
               {messages.map((m) => (
-                <motion.div
-                  key={m.id}
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                <motion.div key={m.id}
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ type: "spring", stiffness: 260, damping: 24 }}
-                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[86%] rounded-3xl px-4 py-2.5 text-sm leading-relaxed shadow-soft whitespace-pre-wrap ${
-                      m.role === "user"
-                        ? "bg-ink text-cream rounded-br-lg"
-                        : "bg-white/90 text-ink rounded-bl-lg"
-                    }`}
-                  >
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[86%] rounded-3xl px-4 py-2.5 text-sm leading-relaxed shadow-soft whitespace-pre-wrap ${m.role === "user" ? "bg-ink text-cream rounded-br-lg" : "bg-white/90 text-ink rounded-bl-lg"}`}>
                     {m.text}
                   </div>
                 </motion.div>
               ))}
               {isTyping && (
-                <motion.div
-                  key="typing"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="flex justify-start"
-                >
-                  <div className="bg-white/90 rounded-3xl rounded-bl-lg px-4 py-3 shadow-soft">
-                    <TypingDots />
-                  </div>
+                <motion.div key="typing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  className="flex justify-start">
+                  <div className="bg-white/90 rounded-3xl rounded-bl-lg px-4 py-3 shadow-soft"><TypingDots /></div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
-
-          {/* Suggestions */}
           {messages.length <= 1 && !isTyping && (
             <div className="px-4 pb-2 flex flex-wrap gap-1.5">
               {suggestions.map((sg) => (
-                <motion.button
-                  key={sg}
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
+                <motion.button key={sg} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
                   onClick={() => { setInput(sg); setTimeout(() => send(), 0); }}
-                  className="text-[11px] font-medium bg-white/70 hover:bg-white rounded-full px-3 py-1.5 text-ink/75 transition"
-                >
+                  className="text-[11px] font-medium bg-white/70 hover:bg-white rounded-full px-3 py-1.5 text-ink/75 transition">
                   {sg}
                 </motion.button>
               ))}
             </div>
           )}
-
-          {/* Input */}
           <form onSubmit={send} className="relative p-3 pt-2 flex items-center gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+            <input value={input} onChange={(e) => setInput(e.target.value)}
               placeholder="Ask me anything about your money…"
-              className="flex-1 rounded-2xl bg-white/90 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition"
-            />
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              type="submit"
+              className="flex-1 rounded-2xl bg-white/90 px-4 py-3 text-sm font-medium shadow-soft focus:ring-2 focus:ring-plilac-300 transition" />
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} type="submit"
               disabled={!input.trim() || isTyping}
-              className="rounded-2xl bg-ink text-cream font-semibold px-4 py-3 text-sm shadow-soft disabled:opacity-40 disabled:cursor-not-allowed"
-            >
+              className="rounded-2xl bg-ink text-cream font-semibold px-4 py-3 text-sm shadow-soft disabled:opacity-40 disabled:cursor-not-allowed">
               ➤
             </motion.button>
           </form>
@@ -983,65 +1295,94 @@
     // ——————————————————————————————————————————————————————————————
     function App() {
       const [income, setIncome, incomeSavedAt] = usePersistedState("moneymate:income", "80000");
-      const [expenses, setExpenses, expensesSavedAt] = usePersistedState("moneymate:expenses", {
-        rent: "25000", maintenance: "3000", furniture: "2000", travel: "4000"
-      });
+      const [disposable, setDisposable, dispSavedAt] = usePersistedState("moneymate:disposable", [
+        { id: 1, name: "Freelance logo", amount: 12000, emoji: "💸" },
+      ]);
+      const [fixedExpenses, setFixedExpenses, fixedSavedAt] = usePersistedState("moneymate:fixedExpenses", [
+        { id: 1, name: "Rent",         emoji: "🏠", amount: 25000, color: "pyellow" },
+        { id: 2, name: "Credit Card",  emoji: "💳", amount: 5000,  color: "pblue" },
+        { id: 3, name: "Maintenance",  emoji: "🔧", amount: 1500,  color: "pmint" },
+        { id: 4, name: "Electricity",  emoji: "💡", amount: 1500,  color: "pyellow" },
+        { id: 5, name: "Furniture",    emoji: "🛋️", amount: 2000,  color: "pblue" },
+        { id: 6, name: "Travel",       emoji: "✈️", amount: 4000,  color: "ppink" },
+      ]);
       const [subscriptions, setSubscriptions, subsSavedAt] = usePersistedState("moneymate:subscriptions", [
         { id: 1, name: "Netflix",  amount: 649, emoji: "🎬" },
         { id: 2, name: "Spotify",  amount: 119, emoji: "🎵" },
         { id: 3, name: "Hotstar",  amount: 299, emoji: "📺" },
         { id: 4, name: "iCloud+",  amount: 75,  emoji: "☁️" },
       ]);
-      const [goals, setGoals, goalsSavedAt] = usePersistedState("moneymate:goals", [
-        { id: 1, name: "Emergency Fund", target: 100000, saved: 25000, emoji: "🛟" },
-        { id: 2, name: "Trip to Japan",  target: 200000, saved: 45000, emoji: "🗾" },
+      const [zoey, setZoey, zoeySavedAt] = usePersistedState("moneymate:zoey", [
+        { id: 1, name: "Kibble",      amount: 2200, emoji: "🦴" },
+        { id: 2, name: "Vet checkup", amount: 800,  emoji: "🩺" },
       ]);
-      const lastSavedAt = Math.max(incomeSavedAt || 0, expensesSavedAt || 0, subsSavedAt || 0, goalsSavedAt || 0);
+      const [treatBudget, setTreatBudget, tbSavedAt] = usePersistedState("moneymate:treatBudget", "5000");
+      const [treatSpent, setTreatSpent, tsSavedAt] = usePersistedState("moneymate:treatSpent", [
+        { id: 1, name: "Bookstore haul", amount: 1200, emoji: "📖" },
+      ]);
+      const [investments, setInvestments, invSavedAt] = usePersistedState("moneymate:investments", [
+        { id: 1, type: "MF",    name: "Parag Parikh Flexi", amount: 5000, emoji: "📈" },
+        { id: 2, type: "MF",    name: "UTI Nifty Index",    amount: 3000, emoji: "📈" },
+        { id: 3, type: "Stock", name: "INFY",               amount: 2000, emoji: "💹" },
+      ]);
+      const [goals, setGoals, goalsSavedAt] = usePersistedState("moneymate:goals", [
+        { id: 1, name: "Emergency Fund", target: 100000, saved: 25000, months: 10, emoji: "🛟" },
+        { id: 2, name: "Trip to Japan",  target: 200000, saved: 45000, months: 18, emoji: "🗾" },
+      ]);
+      const [history, setHistory, historySavedAt] = usePersistedState("moneymate:history", {});
+
+      const lastSavedAt = Math.max(incomeSavedAt||0, dispSavedAt||0, fixedSavedAt||0, subsSavedAt||0, zoeySavedAt||0, tbSavedAt||0, tsSavedAt||0, invSavedAt||0, goalsSavedAt||0, historySavedAt||0);
 
       function resetAllData() {
         if (!window.confirm("Clear all your MoneyMate data from this browser? This cannot be undone.")) return;
-        ["moneymate:income", "moneymate:expenses", "moneymate:subscriptions", "moneymate:goals"].forEach(k => {
-          try { window.localStorage.removeItem(k); } catch (e) {}
-        });
+        ["moneymate:income","moneymate:disposable","moneymate:fixedExpenses","moneymate:subscriptions","moneymate:zoey","moneymate:treatBudget","moneymate:treatSpent","moneymate:investments","moneymate:goals","moneymate:history"]
+          .forEach(k => { try { window.localStorage.removeItem(k); } catch (e) {} });
         window.location.reload();
       }
 
-      const totalFixed = useMemo(
-        () => Object.values(expenses).reduce((a, b) => a + num(b), 0),
-        [expenses]
-      );
-      const totalSubs = useMemo(
-        () => subscriptions.reduce((a, s) => a + num(s.amount), 0),
-        [subscriptions]
-      );
-      const totalExpenses = totalFixed + totalSubs;
-      const remaining = num(income) - totalExpenses;
-      const savingsRate = num(income) > 0 ? (remaining / num(income)) * 100 : 0;
+      // Derived
+      const mainIncome = num(income);
+      const totalDisposable = useMemo(() => disposable.reduce((a, d) => a + num(d.amount), 0), [disposable]);
+      const totalIncome = mainIncome + totalDisposable;
+      const totalFixed = useMemo(() => fixedExpenses.reduce((a, e) => a + num(e.amount), 0), [fixedExpenses]);
+      const totalSubs  = useMemo(() => subscriptions.reduce((a, s) => a + num(s.amount), 0), [subscriptions]);
+      const totalZoey  = useMemo(() => zoey.reduce((a, z) => a + num(z.amount), 0), [zoey]);
+      const totalTreat = useMemo(() => treatSpent.reduce((a, t) => a + num(t.amount), 0), [treatSpent]);
+      const treatBudgetNum = num(treatBudget);
+      const totalInvestments = useMemo(() => investments.reduce((a, i) => a + num(i.amount), 0), [investments]);
+      const mfTotal = useMemo(() => investments.filter(i => i.type === "MF").reduce((a, i) => a + num(i.amount), 0), [investments]);
+      const stTotal = useMemo(() => investments.filter(i => i.type === "Stock").reduce((a, i) => a + num(i.amount), 0), [investments]);
+
+      // Treat budget counts as an expense commitment (you set it aside).
+      const totalExpenses = totalFixed + totalSubs + totalZoey + treatBudgetNum;
+      const remaining = totalIncome - totalExpenses - totalInvestments;
+      const savingsRate = totalIncome > 0 ? ((totalInvestments + Math.max(0, remaining)) / totalIncome) * 100 : 0;
+
+      const currentSnapshot = {
+        income: totalIncome,
+        expenses: totalExpenses + totalInvestments,
+        savings: remaining + totalInvestments,
+      };
 
       const ctx = {
-        income: num(income), totalExpenses, totalFixed, totalSubs,
-        remaining, savingsRate, expenses, subscriptions, goals,
+        totalIncome, totalExpenses, totalFixed, totalSubs, totalZoey, totalTreat, treatBudget: treatBudgetNum, treatSpent,
+        totalInvestments, mfTotal, stTotal, totalDisposable,
+        remaining, savingsRate,
+        subscriptions, goals, fixedExpenses, zoey, investments, disposable,
       };
 
       return (
         <div className="min-h-screen relative overflow-x-hidden">
-          {/* ambient organic blobs */}
           <div aria-hidden data-export-ignore="true" className="pointer-events-none fixed inset-0 overflow-hidden">
-            <motion.div
-              animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
+            <motion.div animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
               transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-ppink-200/35 blob-1 blur-3xl"
-            />
-            <motion.div
-              animate={{ x: [0, -40, 0], y: [0, 30, 0] }}
+              className="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-ppink-200/35 blob-1 blur-3xl" />
+            <motion.div animate={{ x: [0, -40, 0], y: [0, 30, 0] }}
               transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] bg-plilac-200/30 blob-2 blur-3xl"
-            />
-            <motion.div
-              animate={{ x: [0, 40, 0], y: [0, -40, 0] }}
+              className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] bg-plilac-200/30 blob-2 blur-3xl" />
+            <motion.div animate={{ x: [0, 40, 0], y: [0, -40, 0] }}
               transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute -bottom-32 left-1/4 w-[26rem] h-[26rem] bg-pmint-200/35 blob-3 blur-3xl"
-            />
+              className="absolute -bottom-32 left-1/4 w-[26rem] h-[26rem] bg-pmint-200/35 blob-3 blur-3xl" />
           </div>
 
           <div data-export-root className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
@@ -1049,19 +1390,32 @@
 
             <div className="mt-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-6 lg:gap-8">
               <main className="space-y-6 min-w-0">
-                <IncomeCard income={income} setIncome={setIncome} remaining={remaining} totalExpenses={totalExpenses} />
-                <FixedExpensesGrid expenses={expenses} setExpenses={setExpenses} />
+                <IncomeCard
+                  income={income} setIncome={setIncome}
+                  totalIncome={totalIncome}
+                  remaining={remaining}
+                  totalExpenses={totalExpenses}
+                  totalInvestments={totalInvestments} />
+                <DisposableIncomeCard items={disposable} setItems={setDisposable} total={totalDisposable} />
+                <FixedExpensesCard items={fixedExpenses} setItems={setFixedExpenses} total={totalFixed} />
                 <SubscriptionsCard subscriptions={subscriptions} setSubscriptions={setSubscriptions} total={totalSubs} />
+                <ZoeyCard items={zoey} setItems={setZoey} total={totalZoey} />
+                <TreatMyselfCard
+                  budget={treatBudget} setBudget={setTreatBudget}
+                  spent={treatSpent} setSpent={setTreatSpent}
+                  spentTotal={totalTreat} />
+                <InvestmentsCard items={investments} setItems={setInvestments} total={totalInvestments} />
                 <GoalsCard goals={goals} setGoals={setGoals} />
+                <CalendarCard history={history} setHistory={setHistory} currentSnapshot={currentSnapshot} />
               </main>
 
               <aside className="lg:sticky lg:top-6 lg:self-start lg:h-[calc(100vh-3rem)] flex flex-col gap-5 min-h-0">
                 <SummaryCard
-                  income={income}
+                  totalIncome={totalIncome}
                   totalExpenses={totalExpenses}
+                  totalInvestments={totalInvestments}
                   remaining={remaining}
-                  savingsRate={savingsRate}
-                />
+                  savingsRate={savingsRate} />
                 <AIChatCard ctx={ctx} />
               </aside>
             </div>
